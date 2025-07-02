@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Statistics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="vendor/tailwindcss.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9; /* slate-100 */
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-6 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-slate-900">Your Focus Statistics</h1>
+            <p class="text-slate-600 mt-1">Visualize your productivity over time.</p>
+        </header>
+
+        <div class="bg-white p-6 rounded-xl shadow-md">
+            <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-4 mb-6">
+                <button id="day-btn" class="time-range-btn bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-semibold">Day</button>
+                <button id="week-btn" class="time-range-btn bg-white text-slate-700 px-4 py-2 rounded-md text-sm font-semibold hover:bg-slate-100">Week</button>
+                <button id="month-btn" class="time-range-btn bg-white text-slate-700 px-4 py-2 rounded-md text-sm font-semibold hover:bg-slate-100">Month</button>
+                <button id="year-btn" class="time-range-btn bg-white text-slate-700 px-4 py-2 rounded-md text-sm font-semibold hover:bg-slate-100">Year</button>
+            </div>
+
+            <div>
+                <canvas id="focus-chart"></canvas>
+            </div>
+        </div>
+        
+        <div class="mt-8 bg-white p-6 rounded-xl shadow-md">
+            <h2 class="text-xl font-bold text-slate-800 mb-4">All Sessions</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Category</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Duration (min)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sessions-table-body" class="bg-white divide-y divide-slate-200">
+                        <!-- Rows will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+    <script src="options.js"></script>
+</body>
+</html>
