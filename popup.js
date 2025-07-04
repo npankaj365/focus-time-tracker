@@ -2,13 +2,23 @@
 
 const timerDisplay = document.getElementById('timer-display');
 const durationInput = document.getElementById('duration-input');
-const categoryInput = document.getElementById('category-input');
+const categorySelect = document.getElementById('category-select');
+const categoryCustom = document.getElementById('category-custom');
 const startBtn = document.getElementById('start-btn');
 const stopBtn = document.getElementById('stop-btn');
 const resetBtn = document.getElementById('reset-btn');
 const optionsLink = document.getElementById('options-link');
 
 let timerInterval;
+let allSessions = [];
+
+// Load categories from sessions
+function loadCategories() {
+    chrome.storage.local.get('sessions', (data) => {
+        allSessions = data.sessions || [];
+        updateCategorySelect(categorySelect, allSessions);
+    });
+}
 
 // Update UI based on stored state from sync storage
 function updateUI() {
@@ -16,7 +26,13 @@ function updateUI() {
         const { timer, settings } = data;
         
         if (settings?.lastCategory) {
-            categoryInput.value = settings.lastCategory;
+            categorySelect.value = settings.lastCategory;
+            if (categorySelect.value !== settings.lastCategory) {
+                // Category doesn't exist in dropdown, use custom input
+                categorySelect.value = '_other_';
+                categoryCustom.style.display = 'block';
+                categoryCustom.value = settings.lastCategory;
+            }
         }
         durationInput.value = timer.duration / 60;
 
@@ -24,7 +40,8 @@ function updateUI() {
             startBtn.classList.add('hidden');
             stopBtn.classList.remove('hidden');
             durationInput.disabled = true;
-            categoryInput.disabled = true;
+            categorySelect.disabled = true;
+            categoryCustom.disabled = true;
             updateTimerDisplay(timer.endTime);
             if (!timerInterval) {
                 timerInterval = setInterval(() => updateTimerDisplay(timer.endTime), 1000);
@@ -33,7 +50,8 @@ function updateUI() {
             stopBtn.classList.add('hidden');
             startBtn.classList.remove('hidden');
             durationInput.disabled = false;
-            categoryInput.disabled = false;
+            categorySelect.disabled = false;
+            categoryCustom.disabled = false;
             displayFormattedTime(timer.duration);
             clearInterval(timerInterval);
             timerInterval = null;
@@ -64,7 +82,7 @@ function displayFormattedTime(totalSeconds) {
 // Event Listeners
 startBtn.addEventListener('click', () => {
     const duration = parseInt(durationInput.value, 10) * 60;
-    const category = categoryInput.value.trim();
+    const category = getFinalCategoryValue(categorySelect, categoryCustom);
 
     if (isNaN(duration) || duration <= 0) {
         alert("Please enter a valid duration.");
@@ -106,8 +124,23 @@ optionsLink.addEventListener('click', (e) => {
     chrome.runtime.openOptionsPage();
 });
 
+// Category select change handler
+categorySelect.addEventListener('change', () => {
+    handleCategorySelectChange(categorySelect, categoryCustom);
+});
+
+// Listen for storage changes to update categories
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'local' && changes.sessions) {
+        loadCategories();
+    }
+});
+
 // Initial UI setup
-document.addEventListener('DOMContentLoaded', updateUI);
+document.addEventListener('DOMContentLoaded', () => {
+    loadCategories();
+    updateUI();
+});
 
 // Listen for storage changes to keep UI in sync
 chrome.storage.onChanged.addListener((changes, namespace) => {

@@ -12,6 +12,114 @@
             font-family: 'Inter', sans-serif;
             background-color: #f1f5f9; /* slate-100 */
         }
+        
+        /* Heatmap Styles */
+        .heatmap-grid {
+            display: grid;
+            grid-template-columns: auto repeat(53, 12px);
+            grid-template-rows: auto repeat(7, 12px);
+            gap: 2px;
+            font-size: 10px;
+        }
+        
+        .heatmap-month {
+            grid-column: span 4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #64748b;
+            font-weight: 500;
+        }
+        
+        .heatmap-day-label {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 4px;
+            font-size: 9px;
+            color: #64748b;
+        }
+        
+        .heatmap-day {
+            width: 12px;
+            height: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .heatmap-day:hover {
+            border-color: #64748b;
+        }
+        
+        .heatmap-day.level-0 {
+            background-color: #ffffff;
+        }
+        
+        .heatmap-day.level-1 {
+            background-color: #dcfce7;
+        }
+        
+        .heatmap-day.level-2 {
+            background-color: #86efac;
+        }
+        
+        .heatmap-day.level-3 {
+            background-color: #22c55e;
+        }
+        
+        .heatmap-day.level-4 {
+            background-color: #15803d;
+        }
+        
+        /* Tooltip */
+        .heatmap-tooltip {
+            position: fixed;
+            background: #1f2937;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            white-space: nowrap;
+            transform: translate(-50%, -100%);
+            margin-top: -8px;
+            max-width: 250px;
+        }
+        
+        .heatmap-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: #1f2937;
+        }
+        
+        @media (max-width: 768px) {
+            .heatmap-grid {
+                grid-template-columns: auto repeat(53, 8px);
+                grid-template-rows: auto repeat(7, 8px);
+                gap: 1px;
+            }
+            
+            .heatmap-day {
+                width: 8px;
+                height: 8px;
+            }
+            
+            .heatmap-day-label {
+                font-size: 8px;
+            }
+            
+            .heatmap-month {
+                font-size: 8px;
+            }
+        }
     </style>
 </head>
 <body class="p-4 sm:p-6 md:p-8">
@@ -22,6 +130,33 @@
         </header>
 
         <div class="bg-white p-6 rounded-xl shadow-md">
+            <h2 class="text-xl font-bold text-slate-800 mb-6">Focus Streak Map</h2>
+            <div class="mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="text-sm text-slate-600">
+                        <span id="streak-summary">Loading streak data...</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-slate-500">
+                        <span>Less</span>
+                        <div class="flex gap-1">
+                            <div class="w-3 h-3 border border-slate-300 bg-white rounded-sm"></div>
+                            <div class="w-3 h-3 border border-slate-300 bg-green-100 rounded-sm"></div>
+                            <div class="w-3 h-3 border border-slate-300 bg-green-300 rounded-sm"></div>
+                            <div class="w-3 h-3 border border-slate-300 bg-green-500 rounded-sm"></div>
+                            <div class="w-3 h-3 border border-slate-300 bg-green-700 rounded-sm"></div>
+                        </div>
+                        <span>More</span>
+                    </div>
+                </div>
+                <div id="heatmap-container" class="overflow-x-auto overflow-y-hidden">
+                    <div id="heatmap-grid" class="inline-block min-w-full">
+                        <!-- Heatmap will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 bg-white p-6 rounded-xl shadow-md">
             <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-4 mb-6">
                 <button id="day-btn" class="time-range-btn bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-semibold">Day</button>
                 <button id="week-btn" class="time-range-btn bg-white text-slate-700 px-4 py-2 rounded-md text-sm font-semibold hover:bg-slate-100">Week</button>
@@ -29,46 +164,32 @@
                 <button id="year-btn" class="time-range-btn bg-white text-slate-700 px-4 py-2 rounded-md text-sm font-semibold hover:bg-slate-100">Year</button>
             </div>
             
-            <div class="flex items-center justify-between mb-4">
-                <button id="prev-btn" class="flex items-center gap-2 bg-slate-100 text-slate-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-                    </svg>
-                    Previous
-                </button>
+            <div class="relative flex items-center mb-4">
+                <div class="flex-1 flex justify-start">
+                    <button id="prev-btn" class="flex items-center gap-2 bg-slate-100 text-slate-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                        </svg>
+                        Previous
+                    </button>
+                </div>
                 
-                <div id="period-display" class="text-lg font-semibold text-slate-800">
+                <div id="period-display" class="absolute inset-0 flex items-center justify-center text-lg font-semibold text-slate-800 pointer-events-none">
                     Today
                 </div>
                 
-                <button id="next-btn" class="flex items-center gap-2 bg-slate-100 text-slate-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400">
-                    Next
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                    </svg>
-                </button>
+                <div class="flex-1 flex justify-end">
+                    <button id="next-btn" class="flex items-center gap-2 bg-slate-100 text-slate-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                        Next
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             <div class="relative w-full" style="height: 400px; max-height: 60vh;">
                 <canvas id="focus-chart"></canvas>
-            </div>
-        </div>
-        
-        <div class="mt-8 bg-white p-6 rounded-xl shadow-md">
-            <h2 class="text-xl font-bold text-slate-800 mb-4">Backup & Restore</h2>
-            <div class="flex flex-wrap gap-4 mb-6">
-                <button id="export-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    Export to CSV
-                </button>
-                <div class="flex items-center gap-2">
-                    <input type="file" id="import-file" accept=".csv" class="hidden">
-                    <button id="import-btn" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
-                        Import from CSV
-                    </button>
-                </div>
-                <button id="clear-data-btn" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500">
-                    Clear All Data
-                </button>
             </div>
         </div>
 
@@ -116,6 +237,24 @@
                     <p class="text-2xl font-bold mt-1">--</p>
                     <p class="text-xs opacity-75 mt-1">minutes focused</p>
                 </div>
+            </div>
+        </div>
+
+        <div class="mt-8 bg-white p-6 rounded-xl shadow-md">
+            <h2 class="text-xl font-bold text-slate-800 mb-4">Backup & Restore</h2>
+            <div class="flex flex-wrap gap-4 mb-6">
+                <button id="export-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    Export to CSV
+                </button>
+                <div class="flex items-center gap-2">
+                    <input type="file" id="import-file" accept=".csv" class="hidden">
+                    <button id="import-btn" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+                        Import from CSV
+                    </button>
+                </div>
+                <button id="clear-data-btn" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500">
+                    Clear All Data
+                </button>
             </div>
         </div>
 

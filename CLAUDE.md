@@ -13,9 +13,12 @@ The extension follows Chrome Extension MV3 architecture:
 - **background.js**: Service worker that manages timer state, alarms, and session storage
 - **popup.js**: Controls the popup UI and communicates with background script
 - **options.js**: Handles the statistics page with Chart.js visualization
-- **popup.html**: Main popup interface (320px width)
-- **options.html**: Statistics page with charts and session tables
-- **manifest.json**: Extension configuration (MV3)
+- **newtab.js**: Powers the new tab override page with integrated timer and stats
+- **categories.js**: Shared utility for category management across all interfaces
+- **popup.html**: Main popup interface (320px width) with category dropdown
+- **options.html**: Statistics page with heatmap, charts, and session management
+- **newtab.html**: New tab override page with glass morphism design
+- **manifest.json**: Extension configuration (MV3) with new tab override
 
 ## Key Components
 
@@ -57,17 +60,42 @@ This is a Chrome extension project with no build process. Development workflow:
 
 ## Advanced Features
 
-### 📊 **Interactive Statistics Dashboard**
-- **Pie Chart Visualization**: Shows focus time distribution by category
-- **Responsive Design**: Adapts to browser window size (400px height, 60vh max)
-- **Enhanced Legends**: Display category names with time duration (e.g., "Work (2h 30m)")
-- **Smart Positioning**: Legend on right (desktop) or bottom (mobile)
+### 🎯 **New Tab Override**
+- **Custom New Tab Page**: Override Chrome's default new tab with Focus Time Tracker
+- **Integrated Timer**: Full timer functionality with visual progress circle
+- **Live Statistics**: Mini heatmap and daily progress cards
+- **Glass Morphism Design**: Beautiful gradient background with frosted glass cards
+- **Mobile Responsive**: Adaptive layout for all screen sizes
 
-### 🗓️ **Time Period Navigation**
-- **Previous/Next Navigation**: Browse through historical periods
+### 🏷️ **Smart Category Management**
+- **Default Categories**: Pre-loaded with "Research", "Learning", "Work", "Volunteering"
+- **Auto-Discovery**: Extracts unique categories from existing sessions
+- **Popup Dropdown**: Clean select interface with "Other" option for custom categories
+- **New Tab Autocomplete**: HTML5 datalist with type-ahead suggestions
+- **Dynamic Updates**: Categories refresh automatically when sessions change
+- **Memory**: Remembers last used category across sessions
+
+### 📊 **GitHub-Style Streak Heatmap**
+- **365-Day Visualization**: Full year view with week-by-week layout
+- **Intensity Levels**: 5 color-coded levels based on focus duration
+- **Interactive Tooltips**: Hover to see date and focus time details
+- **Streak Statistics**: Current streak, longest streak, total days, and time
+- **Responsive Design**: Adapts grid size for mobile devices
+- **Smart Positioning**: Prevents tooltips from going outside viewport
+
+### 📈 **Enhanced Statistics Dashboard**
+- **Pie Chart Visualization**: Shows focus time distribution by category
+- **Period Navigation**: Browse Day/Week/Month/Year with Previous/Next buttons
+- **Dynamic Titles**: Period display shows total focus hours (e.g., "Today - 2h 30m Focus")
+- **Smart Navigation**: Next button hides when viewing current/future periods
+- **Always-Visible Legends**: Shows category breakdown even for single categories
+- **Empty State Handling**: Displays empty circle with message when no data
+
+### 🗓️ **Time Period Analysis**
 - **Smart Period Display**: Shows "Today", specific dates, or date ranges
-- **Multiple Time Units**: Day, Week, Month, Year navigation
 - **Precise Data Filtering**: Accurate date range filtering for each period
+- **Responsive Layout**: Navigation buttons with proper centering
+- **Real-time Updates**: Period display updates with total focus time
 
 ### 📈 **Summary Cards**
 - **8 Time Period Cards**: Today, This Week, Last Week, This Month, Last Month, This Year, Last Year, All Time
@@ -89,10 +117,11 @@ This is a Chrome extension project with no build process. Development workflow:
 - **Error Handling**: Proper error handling for storage operations
 
 ### 🎨 **UI/UX Improvements**
-- **Responsive Chart**: Auto-resizes with browser window changes
+- **Responsive Charts**: Auto-resize with browser window changes
 - **Touch-Friendly**: Optimized for mobile devices
 - **Visual Feedback**: Loading states and progress indicators
 - **Consistent Theming**: Slate color scheme throughout
+- **Hover Effects**: Smooth transitions and visual feedback
 
 ## Chart System
 

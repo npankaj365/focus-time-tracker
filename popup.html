@@ -6,6 +6,7 @@
     <title>Focus Time Tracker</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="vendor/tailwindcss.js"></script>
+    <script src="categories.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -29,8 +30,11 @@
                 <input type="number" id="duration-input" value="25" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <div>
-                <label for="category-input" class="block text-sm font-medium text-slate-600 mb-1">Category</label>
-                <input type="text" id="category-input" placeholder="e.g., Work, Study" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                <label for="category-select" class="block text-sm font-medium text-slate-600 mb-1">Category</label>
+                <select id="category-select" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">Select category...</option>
+                </select>
+                <input type="text" id="category-custom" placeholder="Enter custom category" class="w-full px-3 py-2 mt-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" style="display: none;">
             </div>
         </div>
 

@@ -17,8 +17,54 @@ document.addEventListener('DOMContentLoaded', () => {
     // Navigation state
     let currentTimeUnit = 'day';
     let currentDate = new Date();
+    
+    // Heatmap elements
+    const heatmapGrid = document.getElementById('heatmap-grid');
+    const streakSummary = document.getElementById('streak-summary');
 
     // Navigation functions
+    function isNextPeriodInFuture() {
+        const now = new Date();
+        const testDate = new Date(currentDate);
+        
+        switch (currentTimeUnit) {
+            case 'day':
+                testDate.setDate(testDate.getDate() + 1);
+                // Check if next day is after today
+                const nextDay = new Date(testDate.getFullYear(), testDate.getMonth(), testDate.getDate());
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                return nextDay > today;
+            case 'week':
+                testDate.setDate(testDate.getDate() + 7);
+                // Check if next week starts after current week
+                const nextWeekStart = new Date(testDate);
+                nextWeekStart.setDate(testDate.getDate() - testDate.getDay());
+                const currentWeekStart = new Date(now);
+                currentWeekStart.setDate(now.getDate() - now.getDay());
+                return nextWeekStart > currentWeekStart;
+            case 'month':
+                testDate.setMonth(testDate.getMonth() + 1);
+                // Check if next month is after current month
+                return testDate.getFullYear() > now.getFullYear() || 
+                       (testDate.getFullYear() === now.getFullYear() && testDate.getMonth() > now.getMonth());
+            case 'year':
+                testDate.setFullYear(testDate.getFullYear() + 1);
+                // Check if next year is after current year
+                return testDate.getFullYear() > now.getFullYear();
+        }
+        
+        return false;
+    }
+
+    function updateNavigationButtons() {
+        const nextBtn = document.getElementById('next-btn');
+        if (isNextPeriodInFuture()) {
+            nextBtn.style.visibility = 'hidden';
+        } else {
+            nextBtn.style.visibility = 'visible';
+        }
+    }
+
     function navigatePrevious() {
         const newDate = new Date(currentDate);
         
@@ -40,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentDate = newDate;
         updatePeriodDisplay();
         renderChart(currentTimeUnit);
+        updateNavigationButtons();
     }
 
     function navigateNext() {
@@ -63,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentDate = newDate;
         updatePeriodDisplay();
         renderChart(currentTimeUnit);
+        updateNavigationButtons();
     }
 
     function updatePeriodDisplay() {
@@ -98,7 +146,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
         }
         
-        periodDisplay.textContent = displayText;
+        // Calculate total focus time for the current period
+        const aggregatedData = aggregateData(allSessions, currentTimeUnit);
+        const totalMinutes = Object.values(aggregatedData).reduce((sum, minutes) => sum + minutes, 0);
+        const totalHours = formatMinutes(totalMinutes);
+        
+        // Display period with total focus time
+        if (totalMinutes > 0) {
+            periodDisplay.textContent = `${displayText} - ${totalHours} Focus`;
+        } else {
+            periodDisplay.textContent = `${displayText} - No Focus Time`;
+        }
     }
 
     // Backup/Restore functions
@@ -213,6 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         allSessions = [];
                         updateSummaryCards(allSessions);
                         renderChart('day');
+                        renderHeatmap(allSessions);
                         alert('✅ All focus session data has been cleared successfully!');
                     }
                 });
@@ -354,69 +413,107 @@ document.addEventListener('DOMContentLoaded', () => {
         const aggregatedData = aggregateData(allSessions, timeUnit);
         const categories = Object.keys(aggregatedData);
         const data = Object.values(aggregatedData);
-        const colorMap = getColorsForCategories(categories);
-        const backgroundColors = categories.map(label => colorMap[label]);
+        const hasData = data.length > 0 && data.some(value => value > 0);
         
-        // Create enhanced labels with time duration
-        const labels = categories.map(category => {
-            const minutes = aggregatedData[category];
-            const formattedTime = formatMinutes(minutes);
-            return `${category} (${formattedTime})`;
-        });
-
         if (focusChart) {
             focusChart.destroy();
-    }
+        }
 
-        focusChart = new Chart(ctx, {
-            type: 'pie',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Minutes Focused',
-                    data: data,
-                    backgroundColor: backgroundColors,
-                    borderColor: '#ffffff',
-                    borderWidth: 2,
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: labels.length > 1,
-                        position: window.innerWidth < 768 ? 'bottom' : 'right',
-                        labels: {
-                            boxWidth: 12,
+        if (!hasData) {
+            // Render empty circle when no data
+            focusChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['No Focus Time'],
+                    datasets: [{
+                        data: [1],
+                        backgroundColor: ['#e2e8f0'], // Light gray
+                        borderColor: '#cbd5e1',
+                        borderWidth: 2,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: `No Focus Time Recorded (${timeUnit.charAt(0).toUpperCase() + timeUnit.slice(1)})`,
                             font: {
-                                size: window.innerWidth < 768 ? 11 : 12
+                                size: window.innerWidth < 768 ? 14 : 18
                             }
+                        },
+                        tooltip: {
+                            enabled: false
                         }
-                    },
-                    title: {
-                        display: true,
-                        text: `Focus Time by Category (${timeUnit.charAt(0).toUpperCase() + timeUnit.slice(1)})`,
-                        font: {
-                            size: window.innerWidth < 768 ? 14 : 18
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const categoryIndex = context.dataIndex;
-                                const category = categories[categoryIndex];
-                                const value = context.parsed;
-                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                const percentage = ((value / total) * 100).toFixed(1);
-                                const formattedTime = formatMinutes(value);
-                                return `${category}: ${formattedTime} (${percentage}%)`;
+                    }
+                }
+            });
+        } else {
+            // Render normal chart with data
+            const colorMap = getColorsForCategories(categories);
+            const backgroundColors = categories.map(label => colorMap[label]);
+            
+            // Create enhanced labels with time duration
+            const labels = categories.map(category => {
+                const minutes = aggregatedData[category];
+                const formattedTime = formatMinutes(minutes);
+                return `${category} (${formattedTime})`;
+            });
+
+            focusChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Minutes Focused',
+                        data: data,
+                        backgroundColor: backgroundColors,
+                        borderColor: '#ffffff',
+                        borderWidth: 2,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: window.innerWidth < 768 ? 'bottom' : 'right',
+                            labels: {
+                                boxWidth: 12,
+                                font: {
+                                    size: window.innerWidth < 768 ? 11 : 12
+                                }
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: `Focus Time by Category (${timeUnit.charAt(0).toUpperCase() + timeUnit.slice(1)})`,
+                            font: {
+                                size: window.innerWidth < 768 ? 14 : 18
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const categoryIndex = context.dataIndex;
+                                    const category = categories[categoryIndex];
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    const formattedTime = formatMinutes(value);
+                                    return `${category}: ${formattedTime} (${percentage}%)`;
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
     }
 
     function formatMinutes(minutes) {
@@ -427,6 +524,267 @@ document.addEventListener('DOMContentLoaded', () => {
             const remainingMinutes = Math.round(minutes % 60);
             return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
         }
+    }
+
+    // Heatmap functions
+    function generateHeatmapData(sessions) {
+        const data = {};
+        const today = new Date();
+        const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+        
+        // Initialize all days in the past year with 0 minutes
+        for (let date = new Date(oneYearAgo); date <= today; date.setDate(date.getDate() + 1)) {
+            const dateStr = date.toISOString().split('T')[0];
+            data[dateStr] = 0;
+        }
+        
+        // Add session data
+        sessions.forEach(session => {
+            const sessionDate = new Date(session.endTime);
+            const dateStr = sessionDate.toISOString().split('T')[0];
+            if (data.hasOwnProperty(dateStr)) {
+                data[dateStr] += session.duration / 60; // Convert to minutes
+            }
+        });
+        
+        return data;
+    }
+
+    function getIntensityLevel(minutes) {
+        if (minutes === 0) return 0;
+        if (minutes < 30) return 1;
+        if (minutes < 60) return 2;
+        if (minutes < 120) return 3;
+        return 4;
+    }
+
+    function createHeatmapGrid(data) {
+        const today = new Date();
+        const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+        
+        // Start from the Sunday of the week containing oneYearAgo
+        const startDate = new Date(oneYearAgo);
+        startDate.setDate(startDate.getDate() - startDate.getDay());
+        
+        const grid = document.createElement('div');
+        grid.className = 'heatmap-grid';
+        
+        // Add month labels
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        let currentMonth = -1;
+        const monthLabels = [];
+        
+        for (let week = 0; week < 53; week++) {
+            const weekStart = new Date(startDate);
+            weekStart.setDate(startDate.getDate() + week * 7);
+            if (weekStart.getMonth() !== currentMonth) {
+                currentMonth = weekStart.getMonth();
+                monthLabels.push({ week, month: months[currentMonth] });
+            }
+        }
+        
+        // Add empty cell for day labels column
+        const emptyCell = document.createElement('div');
+        grid.appendChild(emptyCell);
+        
+        // Add month labels
+        monthLabels.forEach((monthData, index) => {
+            const monthCell = document.createElement('div');
+            monthCell.className = 'heatmap-month';
+            monthCell.textContent = monthData.month;
+            monthCell.style.gridColumn = `${monthData.week + 2} / span 4`;
+            grid.appendChild(monthCell);
+        });
+        
+        // Add day labels
+        const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+        dayLabels.forEach((label, index) => {
+            const dayCell = document.createElement('div');
+            dayCell.className = 'heatmap-day-label';
+            dayCell.textContent = label;
+            dayCell.style.gridRow = index + 2;
+            dayCell.style.gridColumn = 1;
+            grid.appendChild(dayCell);
+        });
+        
+        // Add day cells
+        for (let week = 0; week < 53; week++) {
+            for (let day = 0; day < 7; day++) {
+                const cellDate = new Date(startDate);
+                cellDate.setDate(startDate.getDate() + week * 7 + day);
+                
+                if (cellDate > today) continue;
+                
+                const dateStr = cellDate.toISOString().split('T')[0];
+                const minutes = data[dateStr] || 0;
+                const level = getIntensityLevel(minutes);
+                
+                const dayCell = document.createElement('div');
+                dayCell.className = `heatmap-day level-${level}`;
+                dayCell.style.gridRow = day + 2;
+                dayCell.style.gridColumn = week + 2;
+                
+                // Add data attributes for tooltip
+                dayCell.setAttribute('data-date', dateStr);
+                dayCell.setAttribute('data-minutes', minutes);
+                dayCell.setAttribute('data-formatted-date', cellDate.toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                }));
+                
+                grid.appendChild(dayCell);
+            }
+        }
+        
+        return grid;
+    }
+
+    function calculateStreakStats(data) {
+        const dates = Object.keys(data).sort();
+        let currentStreak = 0;
+        let longestStreak = 0;
+        let totalDays = 0;
+        let totalMinutes = 0;
+        
+        // Calculate current streak (from today backwards)
+        const today = new Date().toISOString().split('T')[0];
+        for (let i = dates.length - 1; i >= 0; i--) {
+            const date = dates[i];
+            const minutes = data[date];
+            
+            if (date > today) continue;
+            
+            if (minutes > 0) {
+                if (date === today || currentStreak > 0) {
+                    currentStreak++;
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        
+        // Calculate longest streak and totals
+        let tempStreak = 0;
+        dates.forEach(date => {
+            const minutes = data[date];
+            totalMinutes += minutes;
+            
+            if (minutes > 0) {
+                totalDays++;
+                tempStreak++;
+                longestStreak = Math.max(longestStreak, tempStreak);
+            } else {
+                tempStreak = 0;
+            }
+        });
+        
+        return {
+            currentStreak,
+            longestStreak,
+            totalDays,
+            totalMinutes: Math.round(totalMinutes)
+        };
+    }
+
+    function renderHeatmap(sessions) {
+        const data = generateHeatmapData(sessions);
+        const stats = calculateStreakStats(data);
+        
+        // Clear existing heatmap
+        heatmapGrid.innerHTML = '';
+        
+        // Create new heatmap
+        const grid = createHeatmapGrid(data);
+        heatmapGrid.appendChild(grid);
+        
+        // Update streak summary
+        const totalHours = formatMinutes(stats.totalMinutes);
+        streakSummary.textContent = `${stats.totalDays} days of focus in the last year • Current streak: ${stats.currentStreak} days • Longest streak: ${stats.longestStreak} days • Total: ${totalHours}`;
+        
+        // Add tooltip functionality
+        addHeatmapTooltips();
+    }
+
+    function addHeatmapTooltips() {
+        let tooltip = null;
+        
+        const heatmapDays = heatmapGrid.querySelectorAll('.heatmap-day');
+        
+        heatmapDays.forEach(day => {
+            day.addEventListener('mouseenter', (e) => {
+                const date = e.target.getAttribute('data-formatted-date');
+                const minutes = parseFloat(e.target.getAttribute('data-minutes'));
+                const focusTime = minutes > 0 ? formatMinutes(minutes) : 'No focus time';
+                
+                // Create tooltip
+                tooltip = document.createElement('div');
+                tooltip.className = 'heatmap-tooltip';
+                tooltip.innerHTML = `<strong>${date}</strong><br>${focusTime}`;
+                document.body.appendChild(tooltip);
+                
+                // Position tooltip with boundary checking
+                const rect = e.target.getBoundingClientRect();
+                const tooltipRect = tooltip.getBoundingClientRect();
+                
+                let left = rect.left + rect.width / 2;
+                let top = rect.top - 8;
+                
+                // Prevent tooltip from going outside viewport
+                if (left - tooltipRect.width / 2 < 5) {
+                    left = tooltipRect.width / 2 + 5;
+                } else if (left + tooltipRect.width / 2 > window.innerWidth - 5) {
+                    left = window.innerWidth - tooltipRect.width / 2 - 5;
+                }
+                
+                if (top < 5) {
+                    top = rect.bottom + 8;
+                    tooltip.style.transform = 'translate(-50%, 0%)';
+                } else {
+                    tooltip.style.transform = 'translate(-50%, -100%)';
+                }
+                
+                tooltip.style.left = left + 'px';
+                tooltip.style.top = top + 'px';
+            });
+            
+            day.addEventListener('mouseleave', () => {
+                if (tooltip) {
+                    tooltip.remove();
+                    tooltip = null;
+                }
+            });
+            
+            day.addEventListener('mousemove', (e) => {
+                if (tooltip) {
+                    const rect = e.target.getBoundingClientRect();
+                    const tooltipRect = tooltip.getBoundingClientRect();
+                    
+                    let left = rect.left + rect.width / 2;
+                    let top = rect.top - 8;
+                    
+                    // Prevent tooltip from going outside viewport
+                    if (left - tooltipRect.width / 2 < 5) {
+                        left = tooltipRect.width / 2 + 5;
+                    } else if (left + tooltipRect.width / 2 > window.innerWidth - 5) {
+                        left = window.innerWidth - tooltipRect.width / 2 - 5;
+                    }
+                    
+                    if (top < 5) {
+                        top = rect.bottom + 8;
+                        tooltip.style.transform = 'translate(-50%, 0%)';
+                    } else {
+                        tooltip.style.transform = 'translate(-50%, -100%)';
+                    }
+                    
+                    tooltip.style.left = left + 'px';
+                    tooltip.style.top = top + 'px';
+                }
+            });
+        });
     }
 
     function updateSummaryCards(sessions) {
@@ -469,6 +827,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setActiveButton(e.target);
             updatePeriodDisplay();
             renderChart(timeUnit);
+            updateNavigationButtons();
         });
     });
 
@@ -512,6 +871,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const activeUnit = document.querySelector('.time-range-btn.bg-indigo-600')?.id.split('-')[0] || 'day';
                             renderChart(activeUnit);
                             updateSummaryCards(allSessions);
+                            renderHeatmap(allSessions);
                         }
                     });
                 } catch (error) {
@@ -529,7 +889,9 @@ document.addEventListener('DOMContentLoaded', () => {
         updatePeriodDisplay(); // Set initial period display
         renderChart('day'); // Initial view
         updateSummaryCards(allSessions);
+        renderHeatmap(allSessions); // Generate heatmap
         setActiveButton(document.getElementById('day-btn'));
+        updateNavigationButtons(); // Set initial navigation button state
     });
     
     // Listen for storage changes to keep data fresh
@@ -539,6 +901,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const activeUnit = document.querySelector('.time-range-btn.bg-indigo-600')?.id.split('-')[0] || 'day';
             renderChart(activeUnit);
             updateSummaryCards(allSessions);
+            renderHeatmap(allSessions); // Update heatmap
+            updateNavigationButtons();
         }
     });
     

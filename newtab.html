@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Time Tracker - New Tab</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="vendor/chart.js"></script>
+    <script src="vendor/tailwindcss.js"></script>
+    <script src="categories.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        
+        .timer-circle {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: conic-gradient(#10b981 0deg, #10b981 0deg, rgba(255,255,255,0.2) 0deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        
+        .timer-inner {
+            width: 170px;
+            height: 170px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        
+        /* Heatmap Styles */
+        .heatmap-grid {
+            display: grid;
+            grid-template-columns: auto repeat(53, 10px);
+            grid-template-rows: auto repeat(7, 10px);
+            gap: 2px;
+            font-size: 9px;
+        }
+        
+        .heatmap-month {
+            grid-column: span 4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 500;
+        }
+        
+        .heatmap-day-label {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 3px;
+            font-size: 8px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .heatmap-day {
+            width: 10px;
+            height: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .heatmap-day:hover {
+            border-color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .heatmap-day.level-0 {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .heatmap-day.level-1 {
+            background-color: rgba(16, 185, 129, 0.3);
+        }
+        
+        .heatmap-day.level-2 {
+            background-color: rgba(16, 185, 129, 0.5);
+        }
+        
+        .heatmap-day.level-3 {
+            background-color: rgba(16, 185, 129, 0.7);
+        }
+        
+        .heatmap-day.level-4 {
+            background-color: rgba(16, 185, 129, 0.9);
+        }
+        
+        /* Tooltip */
+        .heatmap-tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            white-space: nowrap;
+            transform: translate(-50%, -100%);
+            margin-top: -8px;
+            max-width: 250px;
+        }
+        
+        .heatmap-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: rgba(0, 0, 0, 0.9);
+        }
+        
+        @media (max-width: 1024px) {
+            .timer-circle {
+                width: 150px;
+                height: 150px;
+            }
+            
+            .timer-inner {
+                width: 130px;
+                height: 130px;
+            }
+            
+            .heatmap-grid {
+                grid-template-columns: auto repeat(53, 8px);
+                grid-template-rows: auto repeat(7, 8px);
+                gap: 1px;
+            }
+            
+            .heatmap-day {
+                width: 8px;
+                height: 8px;
+            }
+        }
+    </style>
+</head>
+<body class="overflow-hidden">
+    <div class="min-h-screen p-4 sm:p-6 lg:p-8">
+        <div class="max-w-7xl mx-auto h-screen flex flex-col">
+            <!-- Header -->
+            <header class="text-center mb-8">
+                <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-2">Focus Time</h1>
+                <p class="text-white/80 text-lg">Stay focused, stay productive</p>
+            </header>
+            
+            <!-- Main Content Grid -->
+            <div class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden">
+                
+                <!-- Timer Section -->
+                <div class="lg:col-span-1 flex flex-col items-center justify-center">
+                    <div class="glass-card p-8 text-center">
+                        <div class="timer-circle mx-auto mb-6" id="timer-circle">
+                            <div class="timer-inner">
+                                <div class="text-3xl font-bold text-gray-800" id="timer-display">25:00</div>
+                                <div class="text-sm text-gray-600 mt-1" id="timer-status">Ready to focus</div>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div class="flex gap-3 justify-center">
+                                <button id="start-btn" class="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+                                    Start
+                                </button>
+                                <button id="pause-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-2 rounded-lg font-medium transition-colors" disabled>
+                                    Pause
+                                </button>
+                                <button id="stop-btn" class="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg font-medium transition-colors" disabled>
+                                    Stop
+                                </button>
+                            </div>
+                            
+                            <div class="flex items-center gap-2 justify-center">
+                                <label class="text-white text-sm">Category:</label>
+                                <input type="text" id="category-input" placeholder="Work, Study, etc." 
+                                       class="bg-white/20 text-white placeholder-white/60 px-3 py-1 rounded-md text-sm border border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Statistics Section -->
+                <div class="lg:col-span-2 flex flex-col space-y-4 overflow-hidden">
+                    
+                    <!-- Streak Map -->
+                    <div class="glass-card p-6 overflow-hidden">
+                        <h3 class="text-xl font-bold text-white mb-4">Focus Streak</h3>
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="text-sm text-white/80">
+                                <span id="streak-summary">Loading...</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-xs text-white/60">
+                                <span>Less</span>
+                                <div class="flex gap-1">
+                                    <div class="w-2 h-2 border border-white/30 bg-white/10 rounded-sm"></div>
+                                    <div class="w-2 h-2 border border-white/30 bg-green-500/30 rounded-sm"></div>
+                                    <div class="w-2 h-2 border border-white/30 bg-green-500/50 rounded-sm"></div>
+                                    <div class="w-2 h-2 border border-white/30 bg-green-500/70 rounded-sm"></div>
+                                    <div class="w-2 h-2 border border-white/30 bg-green-500/90 rounded-sm"></div>
+                                </div>
+                                <span>More</span>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto overflow-y-hidden">
+                            <div id="heatmap-grid" class="inline-block min-w-full">
+                                <!-- Heatmap will be generated here -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Stats -->
+                    <div class="glass-card p-6">
+                        <h3 class="text-xl font-bold text-white mb-4">Today's Progress</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-white" id="today-time">0m</div>
+                                <div class="text-white/60 text-sm">Today</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-white" id="week-time">0m</div>
+                                <div class="text-white/60 text-sm">This Week</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-white" id="streak-count">0</div>
+                                <div class="text-white/60 text-sm">Current Streak</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+            
+            <!-- Footer Links -->
+            <footer class="text-center mt-6">
+                <div class="space-x-4 text-white/60 text-sm">
+                    <button id="stats-link" class="hover:text-white transition-colors">📊 Full Statistics</button>
+                    <button id="settings-link" class="hover:text-white transition-colors">⚙️ Settings</button>
+                </div>
+            </footer>
+        </div>
+    </div>
+    
+    <script src="newtab.js"></script>
+</body>
+</html>
