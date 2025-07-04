@@ -76,6 +76,9 @@ Built with:
 - **Chart.js** - Beautiful data visualizations
 - **Tailwind CSS** - Responsive utility-first styling
 
+## 💭 Context of Creation
+I appreciated the idea of Forest app and used it for three years. Then in the first week of July '25, I got fed up with Forest app since its last update. There were already too many sore points I had, but the constant nagging about offline mode and so on made me feel like the last straw. So I decided to vibecode with Claude Code for my own personal replacement of the app. I am glad that they had the option to allow me to export my data. Thank you Forest app for your service. Good riddance!
+
 ## 📄 License
 
 MIT License - Feel free to use and modify as needed.
