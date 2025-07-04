@@ -8,6 +8,7 @@
     <script src="vendor/chart.js"></script>
     <script src="vendor/tailwindcss.js"></script>
     <script src="categories.js"></script>
+    <script src="chime.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -15,6 +16,51 @@
             min-height: 100vh;
             margin: 0;
             padding: 0;
+        }
+        
+        /* Hide scrollbars but keep scrolling functionality */
+        body {
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE and Edge */
+        }
+        
+        body::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Opera */
+        }
+        
+        /* Also hide scrollbars on any other scrollable elements */
+        * {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        
+        *::-webkit-scrollbar {
+            display: none;
+        }
+        
+        /* Show a subtle scrollbar for heatmap navigation */
+        .heatmap-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+        }
+        
+        .heatmap-scroll::-webkit-scrollbar {
+            display: block;
+            height: 4px;
+        }
+        
+        .heatmap-scroll::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+        
+        .heatmap-scroll::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+        }
+        
+        .heatmap-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
         }
         
         .glass-card {
@@ -45,6 +91,34 @@
             align-items: center;
             justify-content: center;
             flex-direction: column;
+            text-align: center;
+            line-height: 1;
+        }
+        
+        .timer-display {
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.02em;
+        }
+        
+        .timer-status {
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+            opacity: 0.8;
+        }
+        
+        /* Task checkbox and strikethrough styles */
+        .task-input.completed {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+        
+        .task-checkbox {
+            accent-color: inherit;
+        }
+        
+        .task-checkbox:checked + .task-input {
+            text-decoration: line-through;
+            opacity: 0.6;
         }
         
         /* Heatmap Styles */
@@ -145,6 +219,10 @@
                 height: 130px;
             }
             
+            .timer-display {
+                font-size: 1.75rem !important;
+            }
+            
             .heatmap-grid {
                 grid-template-columns: auto repeat(53, 8px);
                 grid-template-rows: auto repeat(7, 8px);
@@ -156,27 +234,47 @@
                 height: 8px;
             }
         }
+        
+        @media (max-height: 800px) {
+            .timer-circle {
+                width: 120px;
+                height: 120px;
+            }
+            
+            .timer-inner {
+                width: 105px;
+                height: 105px;
+            }
+            
+            .timer-display {
+                font-size: 1.25rem !important;
+            }
+            
+            .timer-status {
+                font-size: 0.75rem !important;
+            }
+        }
     </style>
 </head>
-<body class="overflow-hidden">
+<body>
     <div class="min-h-screen p-4 sm:p-6 lg:p-8">
-        <div class="max-w-7xl mx-auto h-screen flex flex-col">
+        <div class="max-w-7xl mx-auto flex flex-col">
             <!-- Header -->
-            <header class="text-center mb-8">
-                <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-2">Focus Time</h1>
-                <p class="text-white/80 text-lg">Stay focused, stay productive</p>
+            <header class="text-center mb-4 sm:mb-6 lg:mb-8">
+                <h1 class="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-white mb-1 sm:mb-2">Focus Time</h1>
+                <p class="text-white/80 text-base sm:text-lg">Stay focused, stay productive</p>
             </header>
             
-            <!-- Main Content Grid -->
-            <div class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden">
+            <!-- Main Content Grid: 3-5-4 columns -->
+            <div class="grid grid-cols-1 xl:grid-cols-12 lg:grid-cols-6 gap-4 lg:gap-6">
                 
-                <!-- Timer Section -->
-                <div class="lg:col-span-1 flex flex-col items-center justify-center">
-                    <div class="glass-card p-8 text-center">
+                <!-- Timer Section (3 columns) -->
+                <div class="xl:col-span-3 lg:col-span-2 flex flex-col">
+                    <div class="glass-card p-4 lg:p-8 text-center">
                         <div class="timer-circle mx-auto mb-6" id="timer-circle">
                             <div class="timer-inner">
-                                <div class="text-3xl font-bold text-gray-800" id="timer-display">25:00</div>
-                                <div class="text-sm text-gray-600 mt-1" id="timer-status">Ready to focus</div>
+                                <div class="timer-display text-3xl font-bold text-gray-800" id="timer-display">25:00</div>
+                                <div class="timer-status text-gray-600" id="timer-status">Ready to focus</div>
                             </div>
                         </div>
                         
@@ -193,6 +291,14 @@
                                 </button>
                             </div>
                             
+                            <div class="flex flex-wrap gap-1 justify-center">
+                                <button class="duration-btn bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-md text-sm transition-colors" data-duration="30">30m</button>
+                                <button class="duration-btn bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-md text-sm transition-colors" data-duration="60">60m</button>
+                                <button class="duration-btn bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-md text-sm transition-colors" data-duration="90">90m</button>
+                                <button class="duration-btn bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-md text-sm transition-colors" data-duration="120">120m</button>
+                                <button class="duration-btn bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-md text-sm transition-colors" data-duration="180">180m</button>
+                            </div>
+                            
                             <div class="flex items-center gap-2 justify-center">
                                 <label class="text-white text-sm">Category:</label>
                                 <input type="text" id="category-input" placeholder="Work, Study, etc." 
@@ -202,38 +308,11 @@
                     </div>
                 </div>
                 
-                <!-- Statistics Section -->
-                <div class="lg:col-span-2 flex flex-col space-y-4 overflow-hidden">
-                    
-                    <!-- Streak Map -->
-                    <div class="glass-card p-6 overflow-hidden">
-                        <h3 class="text-xl font-bold text-white mb-4">Focus Streak</h3>
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="text-sm text-white/80">
-                                <span id="streak-summary">Loading...</span>
-                            </div>
-                            <div class="flex items-center gap-2 text-xs text-white/60">
-                                <span>Less</span>
-                                <div class="flex gap-1">
-                                    <div class="w-2 h-2 border border-white/30 bg-white/10 rounded-sm"></div>
-                                    <div class="w-2 h-2 border border-white/30 bg-green-500/30 rounded-sm"></div>
-                                    <div class="w-2 h-2 border border-white/30 bg-green-500/50 rounded-sm"></div>
-                                    <div class="w-2 h-2 border border-white/30 bg-green-500/70 rounded-sm"></div>
-                                    <div class="w-2 h-2 border border-white/30 bg-green-500/90 rounded-sm"></div>
-                                </div>
-                                <span>More</span>
-                            </div>
-                        </div>
-                        <div class="overflow-x-auto overflow-y-hidden">
-                            <div id="heatmap-grid" class="inline-block min-w-full">
-                                <!-- Heatmap will be generated here -->
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Quick Stats -->
-                    <div class="glass-card p-6">
-                        <h3 class="text-xl font-bold text-white mb-4">Today's Progress</h3>
+                <!-- Middle Section: Today's Progress + Focus Streak (5 columns) -->
+                <div class="xl:col-span-5 lg:col-span-2 flex flex-col space-y-4">
+                    <!-- Today's Progress -->
+                    <div class="glass-card p-4 lg:p-6">
+                        <h3 class="text-xl font-bold text-white mb-4 text-center">Today's Progress</h3>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div class="text-center">
                                 <div class="text-2xl font-bold text-white" id="today-time">0m</div>
@@ -250,6 +329,123 @@
                         </div>
                     </div>
                     
+                    <!-- Focus Streak -->
+                    <div class="glass-card p-4 lg:p-6 overflow-hidden flex-1">
+                        <h3 class="text-xl font-bold text-white mb-4 text-center">Focus Streak</h3>
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="text-sm text-white/80">
+                                <span id="streak-summary">Loading...</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-xs text-white/60">
+                                <span>Less</span>
+                                <div class="flex gap-1">
+                                    <div class="w-2 h-2 border border-white/30 bg-white/10 rounded-sm"></div>
+                                    <div class="w-2 h-2 border border-white/30 bg-green-500/30 rounded-sm"></div>
+                                    <div class="w-2 h-2 border border-white/30 bg-green-500/50 rounded-sm"></div>
+                                    <div class="w-2 h-2 border border-white/30 bg-green-500/70 rounded-sm"></div>
+                                    <div class="w-2 h-2 border border-white/30 bg-green-500/90 rounded-sm"></div>
+                                </div>
+                                <span>More</span>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto overflow-y-hidden scroll-smooth heatmap-scroll">
+                            <div id="heatmap-grid" class="inline-block min-w-full">
+                                <!-- Heatmap will be generated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Priority Tasks Section (4 columns) -->
+                <div class="xl:col-span-4 lg:col-span-2 flex flex-col">
+                    <div class="glass-card p-4 lg:p-6 flex-1">
+                        <h3 class="text-xl font-bold text-white mb-4">Priority Tasks</h3>
+                        <div class="space-y-3 lg:space-y-4">
+                            <!-- Urgent & Important -->
+                            <div class="bg-red-500/20 border border-red-400/30 rounded-lg p-3 lg:p-4">
+                                <h4 class="font-semibold text-red-200 mb-3 flex items-center">
+                                    <span class="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
+                                    Urgent & Important (1 task)
+                                </h4>
+                                <div class="space-y-2">
+                                    <div class="flex items-start gap-2">
+                                        <input type="checkbox" id="urgent-important-1" class="task-checkbox mt-1 w-4 h-4 text-red-500 bg-white/20 border-white/30 rounded focus:ring-red-400/50 focus:ring-2">
+                                        <input type="text" id="urgent-important-text-1" placeholder="Enter your most critical task..."
+                                               class="task-input flex-1 bg-white/10 text-white placeholder-white/50 p-2 rounded-md text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-red-400/50">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Urgent & Less Important -->
+                            <div class="bg-yellow-500/20 border border-yellow-400/30 rounded-lg p-3 lg:p-4">
+                                <h4 class="font-semibold text-yellow-200 mb-3 flex items-center">
+                                    <span class="w-3 h-3 bg-yellow-500 rounded-full mr-2"></span>
+                                    Urgent & Less Important (2 tasks)
+                                </h4>
+                                <div class="space-y-2">
+                                    <div class="flex items-start gap-2">
+                                        <input type="checkbox" id="urgent-less-important-1" class="task-checkbox mt-1 w-4 h-4 text-yellow-500 bg-white/20 border-white/30 rounded focus:ring-yellow-400/50 focus:ring-2">
+                                        <input type="text" id="urgent-less-important-text-1" placeholder="Urgent task that can be delegated..."
+                                               class="task-input flex-1 bg-white/10 text-white placeholder-white/50 p-2 rounded-md text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-yellow-400/50">
+                                    </div>
+                                    <div class="flex items-start gap-2">
+                                        <input type="checkbox" id="urgent-less-important-2" class="task-checkbox mt-1 w-4 h-4 text-yellow-500 bg-white/20 border-white/30 rounded focus:ring-yellow-400/50 focus:ring-2">
+                                        <input type="text" id="urgent-less-important-text-2" placeholder="Another urgent but less critical task..."
+                                               class="task-input flex-1 bg-white/10 text-white placeholder-white/50 p-2 rounded-md text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-yellow-400/50">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Management Items -->
+                            <div class="bg-blue-500/20 border border-blue-400/30 rounded-lg p-3 lg:p-4">
+                                <h4 class="font-semibold text-blue-200 mb-3 flex items-center">
+                                    <span class="w-3 h-3 bg-blue-500 rounded-full mr-2"></span>
+                                    Management Items (3 tasks)
+                                </h4>
+                                <div class="space-y-2">
+                                    <div class="flex items-start gap-2">
+                                        <input type="checkbox" id="management-items-1" class="task-checkbox mt-1 w-4 h-4 text-blue-500 bg-white/20 border-white/30 rounded focus:ring-blue-400/50 focus:ring-2">
+                                        <input type="text" id="management-items-text-1" placeholder="Important long-term planning task..."
+                                               class="task-input flex-1 bg-white/10 text-white placeholder-white/50 p-2 rounded-md text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-blue-400/50">
+                                    </div>
+                                    <div class="flex items-start gap-2">
+                                        <input type="checkbox" id="management-items-2" class="task-checkbox mt-1 w-4 h-4 text-blue-500 bg-white/20 border-white/30 rounded focus:ring-blue-400/50 focus:ring-2">
+                                        <input type="text" id="management-items-text-2" placeholder="Strategic project or goal..."
+                                               class="task-input flex-1 bg-white/10 text-white placeholder-white/50 p-2 rounded-md text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-blue-400/50">
+                                    </div>
+                                    <div class="flex items-start gap-2">
+                                        <input type="checkbox" id="management-items-3" class="task-checkbox mt-1 w-4 h-4 text-blue-500 bg-white/20 border-white/30 rounded focus:ring-blue-400/50 focus:ring-2">
+                                        <input type="text" id="management-items-text-3" placeholder="Process improvement or learning..."
+                                               class="task-input flex-1 bg-white/10 text-white placeholder-white/50 p-2 rounded-md text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-blue-400/50">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Distraction Parking Lot Below Main Content -->
+            <div class="mt-6">
+                <div class="glass-card p-4 lg:p-6 max-w-4xl mx-auto">
+                    <h3 class="text-lg font-semibold text-white mb-3 flex items-center justify-center">
+                        <span class="mr-2">🧠</span>
+                        Distraction Parking Lot
+                        <span class="ml-2 text-sm font-normal text-white/60">- Jot down distracting thoughts to revisit later</span>
+                    </h3>
+                    <textarea 
+                        id="scratchpad"
+                        placeholder="Caught yourself getting distracted? Quickly note it here and get back to focusing...
+
+• Random idea that popped up
+• Thing to research later  
+• Person to call back
+• Interesting article to read"
+                        class="w-full bg-white/10 text-white placeholder-white/50 p-4 rounded-lg text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 resize-none"
+                        rows="4"></textarea>
+                    <div class="mt-2 text-xs text-white/40 text-right">
+                        Auto-saves as you type
+                    </div>
                 </div>
             </div>
             

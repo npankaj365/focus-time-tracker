@@ -17,6 +17,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const statsLink = document.getElementById('stats-link');
     const settingsLink = document.getElementById('settings-link');
     
+    // Scratchpad element
+    const scratchpadTextarea = document.getElementById('scratchpad');
+    
+    // Priority task elements
+    const priorityTaskElements = {
+        urgentImportant: {
+            inputs: [document.getElementById('urgent-important-text-1')],
+            checkboxes: [document.getElementById('urgent-important-1')]
+        },
+        urgentLessImportant: {
+            inputs: [
+                document.getElementById('urgent-less-important-text-1'),
+                document.getElementById('urgent-less-important-text-2')
+            ],
+            checkboxes: [
+                document.getElementById('urgent-less-important-1'),
+                document.getElementById('urgent-less-important-2')
+            ]
+        },
+        managementItems: {
+            inputs: [
+                document.getElementById('management-items-text-1'),
+                document.getElementById('management-items-text-2'),
+                document.getElementById('management-items-text-3')
+            ],
+            checkboxes: [
+                document.getElementById('management-items-1'),
+                document.getElementById('management-items-2'),
+                document.getElementById('management-items-3')
+            ]
+        }
+    };
+    
     // Timer state
     let timerState = {
         isRunning: false,
@@ -38,20 +71,28 @@ document.addEventListener('DOMContentLoaded', () => {
     loadTimerState();
     loadSessions();
     loadCategories();
+    loadPriorityTasks();
+    loadScratchpad();
     updateDisplay();
     
     // Timer functions
     function loadTimerState() {
-        chrome.storage.sync.get(['isRunning', 'endTime', 'duration'], (data) => {
-            timerState.isRunning = data.isRunning || false;
-            timerState.endTime = data.endTime || null;
-            timerState.duration = data.duration || (25 * 60);
+        chrome.storage.sync.get('timer', (data) => {
+            if (data.timer) {
+                timerState.isRunning = data.timer.isRunning || false;
+                timerState.endTime = data.timer.endTime || null;
+                timerState.duration = data.timer.duration || (25 * 60);
+            } else {
+                timerState.isRunning = false;
+                timerState.endTime = null;
+                timerState.duration = 25 * 60;
+            }
             updateDisplay();
         });
     }
     
     function saveTimerState() {
-        chrome.storage.sync.set(timerState);
+        chrome.storage.sync.set({ timer: timerState });
     }
     
     function updateDisplay() {
@@ -79,48 +120,60 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update status and buttons
         if (timerState.isRunning) {
             timerStatus.textContent = 'Focusing...';
-            startBtn.disabled = true;
+            startBtn.style.display = 'none';
             pauseBtn.disabled = false;
             stopBtn.disabled = false;
         } else {
             timerStatus.textContent = remainingTime === timerState.duration ? 'Ready to focus' : 'Paused';
-            startBtn.disabled = false;
+            startBtn.style.display = 'inline-block';
             pauseBtn.disabled = true;
             stopBtn.disabled = remainingTime === timerState.duration;
         }
     }
     
     function startTimer() {
-        const now = Date.now();
-        timerState.isRunning = true;
-        timerState.endTime = now + (getCurrentRemainingTime() * 1000);
-        saveTimerState();
-        updateDisplay();
+        const duration = getCurrentRemainingTime();
+        const category = categoryInput.value.trim() || 'Uncategorized';
         
-        // Set chrome alarm
-        chrome.alarms.create('focusTimer', { when: timerState.endTime });
+        // Save category setting
+        chrome.storage.sync.set({ settings: { lastCategory: category } });
+        
+        // Use background script to start timer
+        chrome.runtime.sendMessage({ command: 'start', duration }, (response) => {
+            console.log(response.status);
+            loadTimerState();
+        });
     }
     
     function pauseTimer() {
-        timerState.isRunning = false;
-        timerState.duration = getCurrentRemainingTime();
-        timerState.endTime = null;
-        saveTimerState();
-        updateDisplay();
+        // Play crash sound when pausing timer
+        try {
+            createCrashSound();
+        } catch (error) {
+            console.log('Could not play crash sound:', error);
+        }
         
-        // Clear chrome alarm
-        chrome.alarms.clear('focusTimer');
+        // Use background script to stop timer (without saving session)
+        chrome.runtime.sendMessage({ command: 'stop' }, (response) => {
+            console.log(response.status);
+            loadTimerState();
+        });
     }
     
     function stopTimer() {
-        timerState.isRunning = false;
-        timerState.duration = 25 * 60; // Reset to 25 minutes
-        timerState.endTime = null;
-        saveTimerState();
-        updateDisplay();
+        // Play crash sound when stopping timer
+        try {
+            createCrashSound();
+        } catch (error) {
+            console.log('Could not play crash sound:', error);
+        }
         
-        // Clear chrome alarm
-        chrome.alarms.clear('focusTimer');
+        // Use background script to reset timer
+        const duration = 25 * 60; // Reset to 25 minutes
+        chrome.runtime.sendMessage({ command: 'reset', duration }, (response) => {
+            console.log(response.status);
+            loadTimerState();
+        });
     }
     
     function getCurrentRemainingTime() {
@@ -131,36 +184,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function completeSession() {
-        const category = categoryInput.value.trim() || 'Uncategorized';
-        const session = {
-            duration: 25 * 60, // 25 minutes in seconds
-            category: category,
-            endTime: Date.now()
-        };
+        // Play chime sound
+        try {
+            createChime();
+        } catch (error) {
+            console.log('Could not play chime sound:', error);
+        }
         
-        // Save session
-        chrome.storage.local.get('sessions', (data) => {
-            const sessions = data.sessions || [];
-            sessions.push(session);
-            chrome.storage.local.set({ sessions }, () => {
-                allSessions = sessions;
-                updateStats();
-                renderHeatmap(allSessions);
-            });
-        });
-        
-        // Reset timer
-        stopTimer();
-        
-        // Show notification
-        chrome.notifications.create({
-            type: 'basic',
-            iconUrl: 'icons/icon48.png',
-            title: 'Focus Session Complete!',
-            message: `Great job! You focused for 25 minutes in ${category}.`
-        });
-        
+        // The background script already handles session saving and notifications
+        // Just update the UI and reload the timer state
+        loadTimerState();
+        loadSessions(); // Refresh sessions data
         timerStatus.textContent = 'Session complete! 🎉';
+        
+        // Clear the status message after a few seconds
+        setTimeout(() => {
+            if (timerStatus.textContent === 'Session complete! 🎉') {
+                timerStatus.textContent = 'Ready to focus';
+            }
+        }, 5000);
     }
     
     // Session and statistics functions
@@ -393,6 +435,90 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Add tooltip functionality
         addHeatmapTooltips();
+        
+        // Scroll to show the rightmost (most recent) dates
+        setTimeout(() => {
+            const heatmapContainer = heatmapGrid.parentElement;
+            heatmapContainer.scrollLeft = heatmapContainer.scrollWidth - heatmapContainer.clientWidth;
+        }, 100);
+    }
+    
+    // Priority task functions
+    function loadPriorityTasks() {
+        chrome.storage.local.get('priorityTasks', (data) => {
+            const tasks = data.priorityTasks || {
+                urgentImportant: [{text: '', completed: false}],
+                urgentLessImportant: [{text: '', completed: false}, {text: '', completed: false}],
+                managementItems: [{text: '', completed: false}, {text: '', completed: false}, {text: '', completed: false}]
+            };
+            
+            // Load urgent important (1 task)
+            tasks.urgentImportant.forEach((task, index) => {
+                if (priorityTaskElements.urgentImportant.inputs[index]) {
+                    priorityTaskElements.urgentImportant.inputs[index].value = task.text;
+                    priorityTaskElements.urgentImportant.checkboxes[index].checked = task.completed;
+                    updateTaskAppearance(priorityTaskElements.urgentImportant.inputs[index], task.completed);
+                }
+            });
+            
+            // Load urgent less important (2 tasks)
+            tasks.urgentLessImportant.forEach((task, index) => {
+                if (priorityTaskElements.urgentLessImportant.inputs[index]) {
+                    priorityTaskElements.urgentLessImportant.inputs[index].value = task.text;
+                    priorityTaskElements.urgentLessImportant.checkboxes[index].checked = task.completed;
+                    updateTaskAppearance(priorityTaskElements.urgentLessImportant.inputs[index], task.completed);
+                }
+            });
+            
+            // Load management items (3 tasks)
+            tasks.managementItems.forEach((task, index) => {
+                if (priorityTaskElements.managementItems.inputs[index]) {
+                    priorityTaskElements.managementItems.inputs[index].value = task.text;
+                    priorityTaskElements.managementItems.checkboxes[index].checked = task.completed;
+                    updateTaskAppearance(priorityTaskElements.managementItems.inputs[index], task.completed);
+                }
+            });
+        });
+    }
+    
+    function savePriorityTasks() {
+        const tasks = {
+            urgentImportant: priorityTaskElements.urgentImportant.inputs.map((input, index) => ({
+                text: input.value,
+                completed: priorityTaskElements.urgentImportant.checkboxes[index].checked
+            })),
+            urgentLessImportant: priorityTaskElements.urgentLessImportant.inputs.map((input, index) => ({
+                text: input.value,
+                completed: priorityTaskElements.urgentLessImportant.checkboxes[index].checked
+            })),
+            managementItems: priorityTaskElements.managementItems.inputs.map((input, index) => ({
+                text: input.value,
+                completed: priorityTaskElements.managementItems.checkboxes[index].checked
+            }))
+        };
+        
+        chrome.storage.local.set({ priorityTasks: tasks });
+    }
+    
+    function updateTaskAppearance(inputElement, completed) {
+        if (completed) {
+            inputElement.classList.add('completed');
+        } else {
+            inputElement.classList.remove('completed');
+        }
+    }
+    
+    // Scratchpad functions
+    function loadScratchpad() {
+        chrome.storage.local.get('scratchpad', (data) => {
+            const content = data.scratchpad || '';
+            scratchpadTextarea.value = content;
+        });
+    }
+    
+    function saveScratchpad() {
+        const content = scratchpadTextarea.value;
+        chrome.storage.local.set({ scratchpad: content });
     }
     
     function addHeatmapTooltips() {
@@ -451,6 +577,32 @@ document.addEventListener('DOMContentLoaded', () => {
     pauseBtn.addEventListener('click', pauseTimer);
     stopBtn.addEventListener('click', stopTimer);
     
+    // Duration button handlers
+    document.querySelectorAll('.duration-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const duration = parseInt(btn.getAttribute('data-duration'));
+            timerState.duration = duration * 60; // Convert to seconds
+            saveTimerState();
+            updateDisplay();
+        });
+    });
+    
+    // Priority task event listeners
+    Object.values(priorityTaskElements).forEach(section => {
+        section.inputs.forEach((input, index) => {
+            input.addEventListener('input', savePriorityTasks);
+            
+            // Add checkbox event listener
+            section.checkboxes[index].addEventListener('change', (e) => {
+                updateTaskAppearance(input, e.target.checked);
+                savePriorityTasks();
+            });
+        });
+    });
+    
+    // Scratchpad event listener
+    scratchpadTextarea.addEventListener('input', saveScratchpad);
+    
     statsLink.addEventListener('click', () => {
         chrome.runtime.openOptionsPage();
     });
@@ -471,7 +623,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Listen for storage changes
     chrome.storage.onChanged.addListener((changes, namespace) => {
-        if (namespace === 'sync' && (changes.isRunning || changes.endTime || changes.duration)) {
+        if (namespace === 'sync' && changes.timer) {
             loadTimerState();
         }
         if (namespace === 'local' && changes.sessions) {

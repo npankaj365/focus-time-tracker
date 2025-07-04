@@ -65,6 +65,13 @@ function updateTimerDisplay(endTime) {
     displayFormattedTime(remainingSeconds);
 
     if (remaining <= 0) {
+        // Play chime sound
+        try {
+            createChime();
+        } catch (error) {
+            console.log('Could not play chime sound:', error);
+        }
+        
         clearInterval(timerInterval);
         timerInterval = null;
         // The background script will handle the state change,
@@ -100,6 +107,13 @@ startBtn.addEventListener('click', () => {
 });
 
 stopBtn.addEventListener('click', () => {
+    // Play crash sound when stopping timer
+    try {
+        createCrashSound();
+    } catch (error) {
+        console.log('Could not play crash sound:', error);
+    }
+    
     chrome.runtime.sendMessage({ command: 'stop' }, (response) => {
         console.log(response.status);
         updateUI();
@@ -127,6 +141,16 @@ optionsLink.addEventListener('click', (e) => {
 // Category select change handler
 categorySelect.addEventListener('change', () => {
     handleCategorySelectChange(categorySelect, categoryCustom);
+});
+
+// Duration button handlers
+document.querySelectorAll('.duration-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const duration = parseInt(btn.getAttribute('data-duration'));
+        durationInput.value = duration;
+        // Update the timer display when duration changes
+        displayFormattedTime(duration * 60);
+    });
 });
 
 // Listen for storage changes to update categories
