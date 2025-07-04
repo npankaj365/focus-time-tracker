@@ -10,9 +10,9 @@ const optionsLink = document.getElementById('options-link');
 
 let timerInterval;
 
-// Update UI based on stored state
+// Update UI based on stored state from sync storage
 function updateUI() {
-    chrome.storage.local.get(['timer', 'settings'], (data) => {
+    chrome.storage.sync.get(['timer', 'settings'], (data) => {
         const { timer, settings } = data;
         
         if (settings?.lastCategory) {
@@ -71,8 +71,8 @@ startBtn.addEventListener('click', () => {
         return;
     }
 
-    // Save settings
-    chrome.storage.local.set({ settings: { lastCategory: category } });
+    // Save settings to sync storage
+    chrome.storage.sync.set({ settings: { lastCategory: category } });
 
     // Send command to background script
     chrome.runtime.sendMessage({ command: 'start', duration }, (response) => {
@@ -111,7 +111,8 @@ document.addEventListener('DOMContentLoaded', updateUI);
 
 // Listen for storage changes to keep UI in sync
 chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === 'local' && (changes.timer || changes.sessions)) {
+    // Check for the 'sync' namespace now
+    if (namespace === 'sync' && (changes.timer || changes.sessions)) {
         updateUI();
     }
 });
