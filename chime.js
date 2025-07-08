@@ -1,6 +1,17 @@
 // chime.js - Simple chime sound generator using Web Audio API
 
 function createChime() {
+    // Play the chime.mp3 file
+    const audio = new Audio(chrome.runtime.getURL('chime.mp3'));
+    audio.volume = 0.3; // Adjust volume as needed
+    audio.play().catch(error => {
+        console.error('Failed to play chime sound:', error);
+        // Fallback to synthesized sound if mp3 fails
+        createSynthesizedChime();
+    });
+}
+
+function createSynthesizedChime() {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const masterGain = audioContext.createGain();
     masterGain.connect(audioContext.destination);

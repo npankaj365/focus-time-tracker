@@ -1,6 +1,8 @@
 // newtab.js
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize task manager
+    const taskManager = new TaskManager();
     // DOM elements
     const timerDisplay = document.getElementById('timer-display');
     const timerStatus = document.getElementById('timer-status');
@@ -20,33 +22,32 @@ document.addEventListener('DOMContentLoaded', () => {
     // Scratchpad element
     const scratchpadTextarea = document.getElementById('scratchpad');
     
-    // Priority task elements
-    const priorityTaskElements = {
-        urgentImportant: {
-            inputs: [document.getElementById('urgent-important-text-1')],
-            checkboxes: [document.getElementById('urgent-important-1')]
+    // Task UI elements
+    const priorityTasksContainer = document.getElementById('priority-tasks-container');
+    const completedTodaySection = document.getElementById('completed-today-section');
+    const completedTodayList = document.getElementById('completed-today-list');
+    const viewHistoryBtn = document.getElementById('view-history-btn');
+    const archiveTasksBtn = document.getElementById('archive-tasks-btn');
+    
+    // Task priority config
+    const taskPriorityConfig = {
+        'urgent-important': {
+            title: 'Urgent & Important',
+            color: 'red',
+            maxTasks: 1,
+            placeholder: 'Enter your most critical task...'
         },
-        urgentLessImportant: {
-            inputs: [
-                document.getElementById('urgent-less-important-text-1'),
-                document.getElementById('urgent-less-important-text-2')
-            ],
-            checkboxes: [
-                document.getElementById('urgent-less-important-1'),
-                document.getElementById('urgent-less-important-2')
-            ]
+        'urgent-less-important': {
+            title: 'Urgent & Less Important',
+            color: 'yellow',
+            maxTasks: 2,
+            placeholder: 'Urgent task that can be delegated...'
         },
-        managementItems: {
-            inputs: [
-                document.getElementById('management-items-text-1'),
-                document.getElementById('management-items-text-2'),
-                document.getElementById('management-items-text-3')
-            ],
-            checkboxes: [
-                document.getElementById('management-items-1'),
-                document.getElementById('management-items-2'),
-                document.getElementById('management-items-3')
-            ]
+        'management-items': {
+            title: 'Management Items',
+            color: 'blue',
+            maxTasks: 3,
+            placeholder: 'Important long-term planning task...'
         }
     };
     
@@ -58,6 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     let allSessions = [];
+    let isEditingTask = false; // Flag to prevent re-renders while editing
     
     // Load categories from sessions
     function loadCategories() {
@@ -71,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadTimerState();
     loadSessions();
     loadCategories();
-    loadPriorityTasks();
+    loadTasks();
     loadScratchpad();
     updateDisplay();
     
@@ -443,69 +445,401 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 100);
     }
     
-    // Priority task functions
-    function loadPriorityTasks() {
-        chrome.storage.local.get('priorityTasks', (data) => {
-            const tasks = data.priorityTasks || {
-                urgentImportant: [{text: '', completed: false}],
-                urgentLessImportant: [{text: '', completed: false}, {text: '', completed: false}],
-                managementItems: [{text: '', completed: false}, {text: '', completed: false}, {text: '', completed: false}]
+    // Task functions
+    async function loadTasks() {
+        const tasks = await taskManager.getTodaysTasks();
+        renderTasks(tasks);
+        
+        // Load completed tasks for today
+        const completedTasks = await taskManager.getTodaysCompletedTasks();
+        renderCompletedTasks(completedTasks);
+    }
+    
+    function renderTasks(tasks) {
+        priorityTasksContainer.innerHTML = '';
+        
+        for (const [priority, config] of Object.entries(taskPriorityConfig)) {
+            const priorityTasks = tasks[priority] || [];
+            const incompleteTasks = priorityTasks.filter(t => !t.completed);
+            
+            const prioritySection = document.createElement('div');
+            // Use specific classes based on color
+            const sectionClasses = {
+                'red': 'bg-red-500/20 border border-red-400/30 rounded-lg p-3 lg:p-4',
+                'yellow': 'bg-yellow-500/20 border border-yellow-400/30 rounded-lg p-3 lg:p-4',
+                'blue': 'bg-blue-500/20 border border-blue-400/30 rounded-lg p-3 lg:p-4'
+            };
+            prioritySection.className = sectionClasses[config.color];
+            
+            const header = document.createElement('h4');
+            const headerClasses = {
+                'red': 'font-semibold text-red-200 mb-3 flex items-center justify-between',
+                'yellow': 'font-semibold text-yellow-200 mb-3 flex items-center justify-between',
+                'blue': 'font-semibold text-blue-200 mb-3 flex items-center justify-between'
+            };
+            header.className = headerClasses[config.color];
+            
+            const dotClasses = {
+                'red': 'w-3 h-3 bg-red-500 rounded-full mr-2',
+                'yellow': 'w-3 h-3 bg-yellow-500 rounded-full mr-2',
+                'blue': 'w-3 h-3 bg-blue-500 rounded-full mr-2'
             };
             
-            // Load urgent important (1 task)
-            tasks.urgentImportant.forEach((task, index) => {
-                if (priorityTaskElements.urgentImportant.inputs[index]) {
-                    priorityTaskElements.urgentImportant.inputs[index].value = task.text;
-                    priorityTaskElements.urgentImportant.checkboxes[index].checked = task.completed;
-                    updateTaskAppearance(priorityTaskElements.urgentImportant.inputs[index], task.completed);
-                }
+            const btnClasses = {
+                'red': 'add-task-btn text-red-200/60 hover:text-red-200 text-sm',
+                'yellow': 'add-task-btn text-yellow-200/60 hover:text-yellow-200 text-sm',
+                'blue': 'add-task-btn text-blue-200/60 hover:text-blue-200 text-sm'
+            };
+            
+            header.innerHTML = `
+                <div class="flex items-center">
+                    <span class="${dotClasses[config.color]}"></span>
+                    ${config.title} (${incompleteTasks.length}/${config.maxTasks})
+                </div>
+                ${incompleteTasks.length < config.maxTasks ? `
+                    <button class="${btnClasses[config.color]}" data-priority="${priority}">
+                        + Add
+                    </button>
+                ` : ''}
+            `;
+            prioritySection.appendChild(header);
+            
+            const tasksContainer = document.createElement('div');
+            tasksContainer.className = 'space-y-2';
+            
+            // Render existing tasks
+            incompleteTasks.forEach(task => {
+                const taskElement = createTaskElement(task, config);
+                tasksContainer.appendChild(taskElement);
             });
             
-            // Load urgent less important (2 tasks)
-            tasks.urgentLessImportant.forEach((task, index) => {
-                if (priorityTaskElements.urgentLessImportant.inputs[index]) {
-                    priorityTaskElements.urgentLessImportant.inputs[index].value = task.text;
-                    priorityTaskElements.urgentLessImportant.checkboxes[index].checked = task.completed;
-                    updateTaskAppearance(priorityTaskElements.urgentLessImportant.inputs[index], task.completed);
-                }
-            });
+            // Add empty slots if needed
+            const emptySlots = config.maxTasks - incompleteTasks.length;
+            for (let i = 0; i < emptySlots; i++) {
+                const emptyTaskElement = createEmptyTaskElement(priority, config);
+                tasksContainer.appendChild(emptyTaskElement);
+            }
             
-            // Load management items (3 tasks)
-            tasks.managementItems.forEach((task, index) => {
-                if (priorityTaskElements.managementItems.inputs[index]) {
-                    priorityTaskElements.managementItems.inputs[index].value = task.text;
-                    priorityTaskElements.managementItems.checkboxes[index].checked = task.completed;
-                    updateTaskAppearance(priorityTaskElements.managementItems.inputs[index], task.completed);
-                }
+            prioritySection.appendChild(tasksContainer);
+            priorityTasksContainer.appendChild(prioritySection);
+        }
+        
+        // Add event listeners for add buttons
+        document.querySelectorAll('.add-task-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const priority = e.target.getAttribute('data-priority');
+                addNewTask(priority);
             });
         });
     }
     
-    function savePriorityTasks() {
-        const tasks = {
-            urgentImportant: priorityTaskElements.urgentImportant.inputs.map((input, index) => ({
-                text: input.value,
-                completed: priorityTaskElements.urgentImportant.checkboxes[index].checked
-            })),
-            urgentLessImportant: priorityTaskElements.urgentLessImportant.inputs.map((input, index) => ({
-                text: input.value,
-                completed: priorityTaskElements.urgentLessImportant.checkboxes[index].checked
-            })),
-            managementItems: priorityTaskElements.managementItems.inputs.map((input, index) => ({
-                text: input.value,
-                completed: priorityTaskElements.managementItems.checkboxes[index].checked
-            }))
-        };
+    function createTaskElement(task, config) {
+        const taskDiv = document.createElement('div');
+        taskDiv.className = 'flex items-start gap-2';
+        taskDiv.setAttribute('data-task-id', task.id);
         
-        chrome.storage.local.set({ priorityTasks: tasks });
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        
+        const checkboxClasses = {
+            'red': 'task-checkbox mt-1 w-4 h-4 text-red-500 bg-white/20 border-white/30 rounded focus:ring-red-400/50 focus:ring-2',
+            'yellow': 'task-checkbox mt-1 w-4 h-4 text-yellow-500 bg-white/20 border-white/30 rounded focus:ring-yellow-400/50 focus:ring-2',
+            'blue': 'task-checkbox mt-1 w-4 h-4 text-blue-500 bg-white/20 border-white/30 rounded focus:ring-blue-400/50 focus:ring-2'
+        };
+        checkbox.className = checkboxClasses[config.color];
+        checkbox.checked = task.completed;
+        
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = task.text;
+        
+        const inputClasses = {
+            'red': 'task-input flex-1 bg-white/10 text-white placeholder-white/50 p-2 rounded-md text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-red-400/50',
+            'yellow': 'task-input flex-1 bg-white/10 text-white placeholder-white/50 p-2 rounded-md text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-yellow-400/50',
+            'blue': 'task-input flex-1 bg-white/10 text-white placeholder-white/50 p-2 rounded-md text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-blue-400/50'
+        };
+        input.className = inputClasses[config.color];
+        input.placeholder = config.placeholder;
+        
+        if (task.completed) {
+            input.classList.add('completed');
+        }
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'text-white/40 hover:text-white/60 text-sm mt-2';
+        deleteBtn.innerHTML = '🗑️';
+        
+        // Event listeners
+        checkbox.addEventListener('change', async (e) => {
+            if (e.target.checked) {
+                await taskManager.completeTask(task.id);
+            } else {
+                await taskManager.uncompleteTask(task.id);
+            }
+            loadTasks();
+        });
+        
+        // Debounced update to avoid too many saves
+        let updateTimeout;
+        input.addEventListener('focus', () => {
+            isEditingTask = true;
+        });
+        
+        input.addEventListener('input', () => {
+            clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(async () => {
+                if (input.value.trim() !== task.text) {
+                    // Update task text reference to prevent unnecessary saves
+                    task.text = input.value.trim();
+                    await taskManager.updateTask(task.id, { text: input.value.trim() });
+                }
+            }, 500); // Update after 500ms of no typing
+        });
+        
+        input.addEventListener('blur', async () => {
+            clearTimeout(updateTimeout);
+            if (input.value.trim() !== task.text) {
+                task.text = input.value.trim();
+                await taskManager.updateTask(task.id, { text: input.value.trim() });
+            }
+            isEditingTask = false;
+        });
+        
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                input.blur(); // This will trigger the blur event and save
+            }
+        });
+        
+        deleteBtn.addEventListener('click', async () => {
+            await taskManager.deleteTask(task.id);
+            loadTasks();
+        });
+        
+        taskDiv.appendChild(checkbox);
+        taskDiv.appendChild(input);
+        taskDiv.appendChild(deleteBtn);
+        
+        return taskDiv;
     }
     
-    function updateTaskAppearance(inputElement, completed) {
-        if (completed) {
-            inputElement.classList.add('completed');
-        } else {
-            inputElement.classList.remove('completed');
+    function createEmptyTaskElement(priority, config) {
+        const taskDiv = document.createElement('div');
+        taskDiv.className = 'flex items-start gap-2';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        
+        const checkboxClasses = {
+            'red': 'task-checkbox mt-1 w-4 h-4 text-red-500 bg-white/20 border-white/30 rounded focus:ring-red-400/50 focus:ring-2',
+            'yellow': 'task-checkbox mt-1 w-4 h-4 text-yellow-500 bg-white/20 border-white/30 rounded focus:ring-yellow-400/50 focus:ring-2',
+            'blue': 'task-checkbox mt-1 w-4 h-4 text-blue-500 bg-white/20 border-white/30 rounded focus:ring-blue-400/50 focus:ring-2'
+        };
+        checkbox.className = checkboxClasses[config.color];
+        checkbox.disabled = true;
+        
+        const input = document.createElement('input');
+        input.type = 'text';
+        
+        const inputClasses = {
+            'red': 'task-input flex-1 bg-white/10 text-white placeholder-white/50 p-2 rounded-md text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-red-400/50',
+            'yellow': 'task-input flex-1 bg-white/10 text-white placeholder-white/50 p-2 rounded-md text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-yellow-400/50',
+            'blue': 'task-input flex-1 bg-white/10 text-white placeholder-white/50 p-2 rounded-md text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-blue-400/50'
+        };
+        input.className = inputClasses[config.color];
+        input.placeholder = config.placeholder;
+        
+        // Track if task has been created
+        let taskCreated = false;
+        let currentTaskId = null;
+        
+        // Set editing flag on focus
+        input.addEventListener('focus', () => {
+            isEditingTask = true;
+        });
+        
+        // Handle input changes
+        input.addEventListener('input', async () => {
+            if (!taskCreated && input.value.trim()) {
+                // Create task when user starts typing
+                taskCreated = true;
+                const newTask = await taskManager.addTask(priority, input.value.trim(), categoryInput.value || 'General');
+                currentTaskId = newTask.id;
+                taskDiv.setAttribute('data-task-id', newTask.id);
+                checkbox.disabled = false;
+                
+                // Set up checkbox listener
+                checkbox.addEventListener('change', async (e) => {
+                    if (e.target.checked) {
+                        await taskManager.completeTask(currentTaskId);
+                    } else {
+                        await taskManager.uncompleteTask(currentTaskId);
+                    }
+                    loadTasks();
+                });
+            } else if (taskCreated && currentTaskId) {
+                // Update existing task text as user types
+                await taskManager.updateTask(currentTaskId, { text: input.value.trim() });
+            }
+        });
+        
+        // Handle when input loses focus
+        input.addEventListener('blur', async () => {
+            isEditingTask = false;
+            if (taskCreated && currentTaskId && !input.value.trim()) {
+                // Delete empty task
+                await taskManager.deleteTask(currentTaskId);
+                loadTasks();
+            }
+        });
+        
+        // Handle Enter key
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                input.blur(); // This will trigger the blur event and save or delete
+            }
+        });
+        
+        taskDiv.appendChild(checkbox);
+        taskDiv.appendChild(input);
+        
+        return taskDiv;
+    }
+    
+    async function addNewTask(priority) {
+        const config = taskPriorityConfig[priority];
+        const tasks = await taskManager.getTodaysTasks();
+        const currentTasks = tasks[priority] || [];
+        const incompleteTasks = currentTasks.filter(t => !t.completed);
+        
+        if (incompleteTasks.length < config.maxTasks) {
+            await taskManager.addTask(priority, '', categoryInput.value || 'General');
+            loadTasks();
         }
+    }
+    
+    function renderCompletedTasks(completedTasks) {
+        if (completedTasks.length === 0) {
+            completedTodaySection.classList.add('hidden');
+            return;
+        }
+        
+        completedTodaySection.classList.remove('hidden');
+        completedTodayList.innerHTML = '';
+        
+        completedTasks.forEach(task => {
+            const taskItem = document.createElement('div');
+            taskItem.className = 'completed-task-item';
+            
+            const time = new Date(task.completedAt).toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit' 
+            });
+            
+            const priorityConfig = taskPriorityConfig[task.priority];
+            const dotClasses = {
+                'red': 'w-2 h-2 bg-red-500 rounded-full',
+                'yellow': 'w-2 h-2 bg-yellow-500 rounded-full',
+                'blue': 'w-2 h-2 bg-blue-500 rounded-full'
+            };
+            
+            taskItem.innerHTML = `
+                <span class="text-green-500">✓</span>
+                <span class="flex-1 text-white/70">${task.text}</span>
+                <span class="text-white/50 text-sm">${task.category} • ${time}</span>
+                <span class="${dotClasses[priorityConfig.color]}"></span>
+            `;
+            
+            completedTodayList.appendChild(taskItem);
+        });
+    }
+    
+    // Task history modal
+    async function showTaskHistory() {
+        const history = await taskManager.getTaskHistory();
+        const modal = createHistoryModal(history);
+        document.body.appendChild(modal);
+    }
+    
+    function createHistoryModal(history) {
+        const modal = document.createElement('div');
+        modal.className = 'modal-backdrop';
+        
+        const content = document.createElement('div');
+        content.className = 'modal-content';
+        
+        const header = document.createElement('div');
+        header.className = 'modal-header';
+        header.innerHTML = `
+            <h2 class="text-2xl font-bold text-gray-800">📚 Task History</h2>
+            <button class="close-modal text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        `;
+        
+        const body = document.createElement('div');
+        body.className = 'modal-body';
+        
+        if (history.length === 0) {
+            body.innerHTML = '<p class="text-gray-500 text-center">No task history yet. Completed tasks will appear here after archiving.</p>';
+        } else {
+            // Group by date
+            const sortedHistory = history.sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            sortedHistory.forEach(day => {
+                const daySection = document.createElement('div');
+                daySection.className = 'history-day';
+                
+                const date = new Date(day.date);
+                const dateStr = date.toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+                
+                daySection.innerHTML = `
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">${dateStr}</h3>
+                    <div class="space-y-2">
+                        ${day.tasks.map(task => {
+                            const priorityConfig = taskPriorityConfig[task.priority];
+                            const dotClasses = {
+                                'red': 'w-2 h-2 bg-red-500 rounded-full',
+                                'yellow': 'w-2 h-2 bg-yellow-500 rounded-full',
+                                'blue': 'w-2 h-2 bg-blue-500 rounded-full'
+                            };
+                            return `
+                                <div class="completed-task-item">
+                                    <span class="text-green-500">✓</span>
+                                    <span class="flex-1 text-gray-600">${task.text}</span>
+                                    <span class="text-gray-400 text-sm">${task.category}</span>
+                                    <span class="${dotClasses[priorityConfig.color]}"></span>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+                
+                body.appendChild(daySection);
+            });
+        }
+        
+        content.appendChild(header);
+        content.appendChild(body);
+        modal.appendChild(content);
+        
+        // Close modal functionality
+        modal.querySelector('.close-modal').addEventListener('click', () => {
+            modal.remove();
+        });
+        
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+        
+        return modal;
     }
     
     // Scratchpad functions
@@ -587,17 +921,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    // Priority task event listeners
-    Object.values(priorityTaskElements).forEach(section => {
-        section.inputs.forEach((input, index) => {
-            input.addEventListener('input', savePriorityTasks);
-            
-            // Add checkbox event listener
-            section.checkboxes[index].addEventListener('change', (e) => {
-                updateTaskAppearance(input, e.target.checked);
-                savePriorityTasks();
-            });
-        });
+    // Task button event listeners
+    viewHistoryBtn.addEventListener('click', showTaskHistory);
+    
+    archiveTasksBtn.addEventListener('click', async () => {
+        await taskManager.archiveCompletedTasks();
+        loadTasks();
     });
     
     // Scratchpad event listener
@@ -632,5 +961,16 @@ document.addEventListener('DOMContentLoaded', () => {
             renderHeatmap(allSessions);
             loadCategories(); // Refresh categories when sessions change
         }
+        if (namespace === 'local' && changes.dailyTasks) {
+            // Only refresh tasks if we're not currently editing
+            if (!isEditingTask) {
+                loadTasks(); // Refresh tasks when they change
+            }
+        }
+    });
+    
+    // Check for task carry-over on load
+    taskManager.carryOverIncompleteTasks().then(() => {
+        loadTasks();
     });
 });
