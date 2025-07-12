@@ -132,6 +132,8 @@ function stopTimer(finished = false) {
           // If a session was successfully completed and saved, show the notification
           if (notificationOptions) {
             chrome.notifications.create(notificationOptions);
+            // Play chime sound
+            playChimeSound();
           }
         }
       });
@@ -154,4 +156,29 @@ function resetTimer(duration) {
         console.log("Timer has been reset.");
       }
     });
+}
+
+async function playChimeSound() {
+  try {
+    // Create an offscreen document to play the MP3 file
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html',
+      reasons: ['AUDIO_PLAYBACK'],
+      justification: 'Play focus completion chime sound'
+    });
+    
+    // Send message to offscreen document to play chime
+    chrome.runtime.sendMessage({ action: 'playChime' });
+    
+    // Clean up offscreen document after a delay
+    setTimeout(async () => {
+      try {
+        await chrome.offscreen.closeDocument();
+      } catch (error) {
+        // Document might already be closed
+      }
+    }, 3000);
+  } catch (error) {
+    console.error('Failed to play chime sound:', error);
+  }
 }

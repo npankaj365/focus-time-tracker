@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Player</title>
+</head>
+<body>
+    <script>
+        chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+            if (message.action === 'playChime') {
+                const audio = new Audio('chime.mp3');
+                audio.volume = 0.3;
+                audio.play().catch(error => {
+                    console.error('Failed to play chime:', error);
+                });
+            }
+        });
+    </script>
+</body>
+</html>

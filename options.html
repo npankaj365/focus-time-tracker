@@ -130,7 +130,14 @@
         </header>
 
         <div class="bg-white p-6 rounded-xl shadow-md">
-            <h2 class="text-xl font-bold text-slate-800 mb-6">Focus Streak Map</h2>
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-xl font-bold text-slate-800">Focus Streak Map</h2>
+                <div class="flex items-center gap-2">
+                    <button id="heatmap-prev" class="text-slate-400 hover:text-slate-600 text-lg font-bold px-2 py-1 rounded hover:bg-slate-100 transition-colors">‹</button>
+                    <span id="heatmap-year" class="text-slate-700 font-semibold min-w-[4rem] text-center">2024</span>
+                    <button id="heatmap-next" class="text-slate-400 hover:text-slate-600 text-lg font-bold px-2 py-1 rounded hover:bg-slate-100 transition-colors">›</button>
+                </div>
+            </div>
             <div class="mb-6">
                 <div class="flex items-center justify-between mb-4">
                     <div class="text-sm text-slate-600">

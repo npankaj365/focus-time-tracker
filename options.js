@@ -21,6 +21,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Heatmap elements
     const heatmapGrid = document.getElementById('heatmap-grid');
     const streakSummary = document.getElementById('streak-summary');
+    const heatmapPrev = document.getElementById('heatmap-prev');
+    const heatmapNext = document.getElementById('heatmap-next');
+    const heatmapYear = document.getElementById('heatmap-year');
+    
+    // Heatmap state
+    let currentHeatmapYear = new Date().getFullYear();
 
     // Navigation functions
     function isNextPeriodInFuture() {
@@ -271,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         allSessions = [];
                         updateSummaryCards(allSessions);
                         renderChart('day');
-                        renderHeatmap(allSessions);
+                        renderHeatmap(allSessions, currentHeatmapYear);
                         alert('✅ All focus session data has been cleared successfully!');
                     }
                 });
@@ -527,13 +533,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Heatmap functions
-    function generateHeatmapData(sessions) {
+    function generateHeatmapData(sessions, year = null) {
         const data = {};
         const today = new Date();
-        const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+        const targetYear = year || today.getFullYear();
         
-        // Initialize all days in the past year with 0 minutes
-        for (let date = new Date(oneYearAgo); date <= today; date.setDate(date.getDate() + 1)) {
+        // Determine date range
+        let startDate, endDate;
+        if (targetYear === today.getFullYear()) {
+            // Current year: show from one year ago to today
+            startDate = new Date(targetYear - 1, today.getMonth(), today.getDate());
+            endDate = today;
+        } else {
+            // Other years: show full year
+            startDate = new Date(targetYear - 1, 11, 31); // Dec 31 of previous year
+            endDate = new Date(targetYear, 11, 31); // Dec 31 of target year
+        }
+        
+        // Initialize all days in the range with 0 minutes
+        for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
             const dateStr = date.toISOString().split('T')[0];
             data[dateStr] = 0;
         }
@@ -558,9 +576,18 @@ document.addEventListener('DOMContentLoaded', () => {
         return 4;
     }
 
-    function createHeatmapGrid(data) {
+    function createHeatmapGrid(data, year = null) {
         const today = new Date();
-        const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+        const targetYear = year || today.getFullYear();
+        
+        let oneYearAgo;
+        if (targetYear === today.getFullYear()) {
+            // Current year: show from one year ago to today
+            oneYearAgo = new Date(targetYear - 1, today.getMonth(), today.getDate());
+        } else {
+            // Other years: show full year
+            oneYearAgo = new Date(targetYear - 1, 11, 31); // Dec 31 of previous year
+        }
         
         // Start from the Sunday of the week containing oneYearAgo
         const startDate = new Date(oneYearAgo);
@@ -690,23 +717,63 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    function renderHeatmap(sessions) {
-        const data = generateHeatmapData(sessions);
+    function renderHeatmap(sessions, year = null) {
+        const targetYear = year || currentHeatmapYear;
+        const data = generateHeatmapData(sessions, targetYear);
         const stats = calculateStreakStats(data);
+        
+        // Update year display
+        heatmapYear.textContent = targetYear;
+        
+        // Update navigation buttons
+        updateHeatmapNavigation(sessions, targetYear);
         
         // Clear existing heatmap
         heatmapGrid.innerHTML = '';
         
         // Create new heatmap
-        const grid = createHeatmapGrid(data);
+        const grid = createHeatmapGrid(data, targetYear);
         heatmapGrid.appendChild(grid);
         
         // Update streak summary
         const totalHours = formatMinutes(stats.totalMinutes);
-        streakSummary.textContent = `${stats.totalDays} days of focus in the last year • Current streak: ${stats.currentStreak} days • Longest streak: ${stats.longestStreak} days • Total: ${totalHours}`;
+        const currentYear = new Date().getFullYear();
+        
+        if (targetYear === currentYear) {
+            streakSummary.textContent = `${stats.totalDays} days of focus in the last year • Current streak: ${stats.currentStreak} days • Longest streak: ${stats.longestStreak} days • Total: ${totalHours}`;
+        } else {
+            streakSummary.textContent = `${stats.totalDays} days of focus in ${targetYear} • Longest streak: ${stats.longestStreak} days • Total: ${totalHours}`;
+        }
         
         // Add tooltip functionality
         addHeatmapTooltips();
+    }
+    
+    function updateHeatmapNavigation(sessions, currentYear) {
+        // Find the range of years with data
+        const yearsWithData = new Set();
+        const currentDate = new Date();
+        
+        sessions.forEach(session => {
+            const year = new Date(session.endTime).getFullYear();
+            yearsWithData.add(year);
+        });
+        
+        const minYear = yearsWithData.size > 0 ? Math.min(...yearsWithData) : currentDate.getFullYear();
+        const maxYear = currentDate.getFullYear();
+        
+        // Update button states
+        heatmapPrev.disabled = currentYear <= minYear;
+        heatmapNext.disabled = currentYear >= maxYear;
+        
+        // Update button styles based on state
+        heatmapPrev.className = currentYear <= minYear 
+            ? 'text-slate-300 text-lg font-bold px-2 py-1 rounded cursor-not-allowed'
+            : 'text-slate-400 hover:text-slate-600 text-lg font-bold px-2 py-1 rounded hover:bg-slate-100 transition-colors cursor-pointer';
+            
+        heatmapNext.className = currentYear >= maxYear
+            ? 'text-slate-300 text-lg font-bold px-2 py-1 rounded cursor-not-allowed'
+            : 'text-slate-400 hover:text-slate-600 text-lg font-bold px-2 py-1 rounded hover:bg-slate-100 transition-colors cursor-pointer';
     }
 
     function addHeatmapTooltips() {
@@ -834,6 +901,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // Navigation event listeners
     prevBtn.addEventListener('click', navigatePrevious);
     nextBtn.addEventListener('click', navigateNext);
+    
+    // Heatmap navigation event listeners
+    heatmapPrev.addEventListener('click', () => {
+        if (!heatmapPrev.disabled) {
+            currentHeatmapYear--;
+            renderHeatmap(allSessions, currentHeatmapYear);
+        }
+    });
+    
+    heatmapNext.addEventListener('click', () => {
+        if (!heatmapNext.disabled) {
+            currentHeatmapYear++;
+            renderHeatmap(allSessions, currentHeatmapYear);
+        }
+    });
 
     // Backup event listeners
     exportBtn.addEventListener('click', exportToCSV);
@@ -871,7 +953,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const activeUnit = document.querySelector('.time-range-btn.bg-indigo-600')?.id.split('-')[0] || 'day';
                             renderChart(activeUnit);
                             updateSummaryCards(allSessions);
-                            renderHeatmap(allSessions);
+                            renderHeatmap(allSessions, currentHeatmapYear);
                         }
                     });
                 } catch (error) {
@@ -889,7 +971,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updatePeriodDisplay(); // Set initial period display
         renderChart('day'); // Initial view
         updateSummaryCards(allSessions);
-        renderHeatmap(allSessions); // Generate heatmap
+        renderHeatmap(allSessions, currentHeatmapYear); // Generate heatmap
         setActiveButton(document.getElementById('day-btn'));
         updateNavigationButtons(); // Set initial navigation button state
     });
@@ -901,7 +983,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const activeUnit = document.querySelector('.time-range-btn.bg-indigo-600')?.id.split('-')[0] || 'day';
             renderChart(activeUnit);
             updateSummaryCards(allSessions);
-            renderHeatmap(allSessions); // Update heatmap
+            renderHeatmap(allSessions, currentHeatmapYear); // Update heatmap
             updateNavigationButtons();
         }
     });

@@ -5,19 +5,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const taskManager = new TaskManager();
     // DOM elements
     const timerDisplay = document.getElementById('timer-display');
+    const timerEdit = document.getElementById('timer-edit');
     const timerStatus = document.getElementById('timer-status');
     const timerCircle = document.getElementById('timer-circle');
     const startBtn = document.getElementById('start-btn');
-    const pauseBtn = document.getElementById('pause-btn');
     const stopBtn = document.getElementById('stop-btn');
     const categoryInput = document.getElementById('category-input');
     const heatmapGrid = document.getElementById('heatmap-grid');
     const streakSummary = document.getElementById('streak-summary');
     const todayTime = document.getElementById('today-time');
     const weekTime = document.getElementById('week-time');
-    const streakCount = document.getElementById('streak-count');
+    const monthTime = document.getElementById('month-time');
+    const weekComparison = document.getElementById('week-comparison');
+    const monthComparison = document.getElementById('month-comparison');
     const statsLink = document.getElementById('stats-link');
     const settingsLink = document.getElementById('settings-link');
+    
+    // Heatmap navigation elements
+    const heatmapPrev = document.getElementById('heatmap-prev');
+    const heatmapNext = document.getElementById('heatmap-next');
+    const heatmapYear = document.getElementById('heatmap-year');
     
     // Scratchpad element
     const scratchpadTextarea = document.getElementById('scratchpad');
@@ -60,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let allSessions = [];
     let isEditingTask = false; // Flag to prevent re-renders while editing
+    let currentHeatmapYear = new Date().getFullYear();
     
     // Load categories from sessions
     function loadCategories() {
@@ -69,10 +77,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // Load last used category
+    function loadLastCategory() {
+        chrome.storage.sync.get('settings', (data) => {
+            if (data.settings && data.settings.lastCategory) {
+                categoryInput.value = data.settings.lastCategory;
+            } else {
+                // If no saved category, get the most recent category from sessions
+                chrome.storage.local.get('sessions', (localData) => {
+                    const sessions = localData.sessions || [];
+                    if (sessions.length > 0) {
+                        // Get the most recent session's category
+                        const lastSession = sessions[sessions.length - 1];
+                        if (lastSession.category && lastSession.category !== 'Uncategorized') {
+                            categoryInput.value = lastSession.category;
+                        }
+                    }
+                });
+            }
+        });
+    }
+    
     // Initialize
     loadTimerState();
     loadSessions();
     loadCategories();
+    loadLastCategory();
     loadTasks();
     loadScratchpad();
     updateDisplay();
@@ -123,12 +153,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (timerState.isRunning) {
             timerStatus.textContent = 'Focusing...';
             startBtn.style.display = 'none';
-            pauseBtn.disabled = false;
             stopBtn.disabled = false;
         } else {
-            timerStatus.textContent = remainingTime === timerState.duration ? 'Ready to focus' : 'Paused';
+            timerStatus.textContent = 'Ready to focus';
             startBtn.style.display = 'inline-block';
-            pauseBtn.disabled = true;
             stopBtn.disabled = remainingTime === timerState.duration;
         }
     }
@@ -147,20 +175,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    function pauseTimer() {
-        // Play crash sound when pausing timer
-        try {
-            createCrashSound();
-        } catch (error) {
-            console.log('Could not play crash sound:', error);
-        }
-        
-        // Use background script to stop timer (without saving session)
-        chrome.runtime.sendMessage({ command: 'stop' }, (response) => {
-            console.log(response.status);
-            loadTimerState();
-        });
-    }
     
     function stopTimer() {
         // Play crash sound when stopping timer
@@ -207,23 +221,98 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 5000);
     }
     
+    // Timer editing functions
+    function enterEditMode() {
+        const currentTime = timerDisplay.textContent;
+        timerEdit.value = currentTime;
+        timerDisplay.classList.add('hidden');
+        timerEdit.classList.remove('hidden');
+        timerEdit.focus();
+        timerEdit.select();
+    }
+    
+    function exitEditMode() {
+        const timeValue = timerEdit.value.trim();
+        if (isValidTimeFormat(timeValue)) {
+            const minutes = parseTimeToMinutes(timeValue);
+            if (minutes > 0 && minutes <= 999) {
+                updateTimerDuration(minutes * 60); // Convert to seconds
+            }
+        }
+        cancelEditMode();
+    }
+    
+    function cancelEditMode() {
+        timerEdit.classList.add('hidden');
+        timerDisplay.classList.remove('hidden');
+    }
+    
+    function isValidTimeFormat(timeStr) {
+        // Accept formats: "25", "25:00", "1:30", "90"
+        const patterns = [
+            /^\d{1,3}$/, // Just minutes: "25"
+            /^\d{1,2}:\d{2}$/ // Minutes:seconds: "25:00"
+        ];
+        return patterns.some(pattern => pattern.test(timeStr));
+    }
+    
+    function parseTimeToMinutes(timeStr) {
+        if (/^\d{1,3}$/.test(timeStr)) {
+            // Just minutes
+            return parseInt(timeStr);
+        } else if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
+            // Minutes:seconds
+            const [minutes, seconds] = timeStr.split(':').map(Number);
+            return minutes + (seconds / 60);
+        }
+        return 0;
+    }
+    
+    function updateTimerDuration(durationInSeconds) {
+        timerState.duration = durationInSeconds;
+        timerState.endTime = null;
+        updateDisplay();
+        
+        // Update the background script with new duration
+        chrome.runtime.sendMessage({ command: 'reset', duration: durationInSeconds });
+    }
+    
     // Session and statistics functions
     function loadSessions() {
         chrome.storage.local.get('sessions', (data) => {
             allSessions = data.sessions || [];
             updateStats();
-            renderHeatmap(allSessions);
+            renderHeatmap(allSessions, currentHeatmapYear);
         });
     }
     
     function updateStats() {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        // This week
         const thisWeekStart = new Date(today);
         thisWeekStart.setDate(today.getDate() - today.getDay());
         
+        // Last week
+        const lastWeekStart = new Date(thisWeekStart);
+        lastWeekStart.setDate(thisWeekStart.getDate() - 7);
+        const lastWeekEnd = new Date(thisWeekStart);
+        lastWeekEnd.setTime(lastWeekEnd.getTime() - 1);
+        
+        // This month
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        
+        // Last month
+        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(thisMonthStart);
+        lastMonthEnd.setTime(lastMonthEnd.getTime() - 1);
+        
         let todayMinutes = 0;
         let weekMinutes = 0;
+        let lastWeekMinutes = 0;
+        let monthMinutes = 0;
+        let lastMonthMinutes = 0;
         
         allSessions.forEach(session => {
             const sessionDate = new Date(session.endTime);
@@ -235,15 +324,24 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sessionDate >= thisWeekStart) {
                 weekMinutes += minutes;
             }
+            if (sessionDate >= lastWeekStart && sessionDate <= lastWeekEnd) {
+                lastWeekMinutes += minutes;
+            }
+            if (sessionDate >= thisMonthStart) {
+                monthMinutes += minutes;
+            }
+            if (sessionDate >= lastMonthStart && sessionDate <= lastMonthEnd) {
+                lastMonthMinutes += minutes;
+            }
         });
         
         todayTime.textContent = formatMinutes(todayMinutes);
         weekTime.textContent = formatMinutes(weekMinutes);
+        monthTime.textContent = formatMinutes(monthMinutes);
         
-        // Calculate streak
-        const heatmapData = generateHeatmapData(allSessions);
-        const streakStats = calculateStreakStats(heatmapData);
-        streakCount.textContent = streakStats.currentStreak;
+        // Update comparisons
+        updateComparison(weekComparison, weekMinutes, lastWeekMinutes);
+        updateComparison(monthComparison, monthMinutes, lastMonthMinutes);
     }
     
     function formatMinutes(minutes) {
@@ -256,14 +354,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    function updateComparison(element, currentMinutes, previousMinutes) {
+        if (previousMinutes === 0) {
+            element.textContent = '';
+            return;
+        }
+        
+        const difference = currentMinutes - previousMinutes;
+        const percentChange = Math.round((difference / previousMinutes) * 100);
+        
+        if (difference > 0) {
+            element.textContent = `+${formatMinutes(difference)} (+${percentChange}%)`;
+            element.style.color = 'rgb(34, 197, 94)'; // green-500
+        } else if (difference < 0) {
+            element.textContent = `-${formatMinutes(Math.abs(difference))} (${percentChange}%)`;
+            element.style.color = 'rgb(185, 28, 28)'; // red-700 - darker, more legible
+        } else {
+            element.textContent = 'No change';
+            element.style.color = 'rgba(255, 255, 255, 0.5)';
+        }
+    }
+    
     // Heatmap functions (simplified versions from options.js)
-    function generateHeatmapData(sessions) {
+    function generateHeatmapData(sessions, year = null) {
         const data = {};
         const today = new Date();
-        const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+        const targetYear = year || today.getFullYear();
         
-        // Initialize all days in the past year with 0 minutes
-        for (let date = new Date(oneYearAgo); date <= today; date.setDate(date.getDate() + 1)) {
+        // Determine date range
+        let startDate, endDate;
+        if (targetYear === today.getFullYear()) {
+            // Current year: show from one year ago to today
+            startDate = new Date(targetYear - 1, today.getMonth(), today.getDate());
+            endDate = today;
+        } else {
+            // Other years: show full year
+            startDate = new Date(targetYear - 1, 11, 31); // Dec 31 of previous year
+            endDate = new Date(targetYear, 11, 31); // Dec 31 of target year
+        }
+        
+        // Initialize all days in the range with 0 minutes
+        for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
             const dateStr = date.toISOString().split('T')[0];
             data[dateStr] = 0;
         }
@@ -337,9 +468,18 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
     
-    function createHeatmapGrid(data) {
+    function createHeatmapGrid(data, year = null) {
         const today = new Date();
-        const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+        const targetYear = year || today.getFullYear();
+        
+        let oneYearAgo;
+        if (targetYear === today.getFullYear()) {
+            // Current year: show from one year ago to today
+            oneYearAgo = new Date(targetYear - 1, today.getMonth(), today.getDate());
+        } else {
+            // Other years: show full year
+            oneYearAgo = new Date(targetYear - 1, 11, 31); // Dec 31 of previous year
+        }
         
         // Start from the Sunday of the week containing oneYearAgo
         const startDate = new Date(oneYearAgo);
@@ -420,20 +560,33 @@ document.addEventListener('DOMContentLoaded', () => {
         return grid;
     }
     
-    function renderHeatmap(sessions) {
-        const data = generateHeatmapData(sessions);
+    function renderHeatmap(sessions, year = null) {
+        const targetYear = year || currentHeatmapYear;
+        const data = generateHeatmapData(sessions, targetYear);
         const stats = calculateStreakStats(data);
+        
+        // Update year display
+        heatmapYear.textContent = targetYear;
+        
+        // Update navigation buttons
+        updateHeatmapNavigation(sessions, targetYear);
         
         // Clear existing heatmap
         heatmapGrid.innerHTML = '';
         
         // Create new heatmap
-        const grid = createHeatmapGrid(data);
+        const grid = createHeatmapGrid(data, targetYear);
         heatmapGrid.appendChild(grid);
         
         // Update streak summary
         const totalHours = formatMinutes(stats.totalMinutes);
-        streakSummary.textContent = `${stats.totalDays} days • Current: ${stats.currentStreak} days • Longest: ${stats.longestStreak} days • Total: ${totalHours}`;
+        const currentYear = new Date().getFullYear();
+        
+        if (targetYear === currentYear) {
+            streakSummary.textContent = `${stats.totalDays} days • Current: ${stats.currentStreak} days • Longest: ${stats.longestStreak} days • Total: ${totalHours}`;
+        } else {
+            streakSummary.textContent = `${stats.totalDays} days in ${targetYear} • Longest: ${stats.longestStreak} days • Total: ${totalHours}`;
+        }
         
         // Add tooltip functionality
         addHeatmapTooltips();
@@ -443,6 +596,33 @@ document.addEventListener('DOMContentLoaded', () => {
             const heatmapContainer = heatmapGrid.parentElement;
             heatmapContainer.scrollLeft = heatmapContainer.scrollWidth - heatmapContainer.clientWidth;
         }, 100);
+    }
+    
+    function updateHeatmapNavigation(sessions, currentYear) {
+        // Find the range of years with data
+        const yearsWithData = new Set();
+        const currentDate = new Date();
+        
+        sessions.forEach(session => {
+            const year = new Date(session.endTime).getFullYear();
+            yearsWithData.add(year);
+        });
+        
+        const minYear = yearsWithData.size > 0 ? Math.min(...yearsWithData) : currentDate.getFullYear();
+        const maxYear = currentDate.getFullYear();
+        
+        // Update button states
+        heatmapPrev.disabled = currentYear <= minYear;
+        heatmapNext.disabled = currentYear >= maxYear;
+        
+        // Update button styles based on state
+        heatmapPrev.className = currentYear <= minYear 
+            ? 'text-white/30 text-lg font-bold px-2 py-1 rounded cursor-not-allowed'
+            : 'text-white/60 hover:text-white text-lg font-bold px-2 py-1 rounded hover:bg-white/10 transition-colors cursor-pointer';
+            
+        heatmapNext.className = currentYear >= maxYear
+            ? 'text-white/30 text-lg font-bold px-2 py-1 rounded cursor-not-allowed'
+            : 'text-white/60 hover:text-white text-lg font-bold px-2 py-1 rounded hover:bg-white/10 transition-colors cursor-pointer';
     }
     
     // Task functions
@@ -908,8 +1088,38 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Event listeners
     startBtn.addEventListener('click', startTimer);
-    pauseBtn.addEventListener('click', pauseTimer);
     stopBtn.addEventListener('click', stopTimer);
+    
+    // Timer editing functionality
+    timerDisplay.addEventListener('click', () => {
+        if (!timerState.isRunning) {
+            enterEditMode();
+        }
+    });
+    
+    timerEdit.addEventListener('blur', exitEditMode);
+    timerEdit.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            exitEditMode();
+        } else if (e.key === 'Escape') {
+            cancelEditMode();
+        }
+    });
+    
+    // Heatmap navigation
+    heatmapPrev.addEventListener('click', () => {
+        if (!heatmapPrev.disabled) {
+            currentHeatmapYear--;
+            renderHeatmap(allSessions, currentHeatmapYear);
+        }
+    });
+    
+    heatmapNext.addEventListener('click', () => {
+        if (!heatmapNext.disabled) {
+            currentHeatmapYear++;
+            renderHeatmap(allSessions, currentHeatmapYear);
+        }
+    });
     
     // Duration button handlers
     document.querySelectorAll('.duration-btn').forEach(btn => {
@@ -958,7 +1168,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (namespace === 'local' && changes.sessions) {
             allSessions = changes.sessions.newValue || [];
             updateStats();
-            renderHeatmap(allSessions);
+            renderHeatmap(allSessions, currentHeatmapYear);
             loadCategories(); // Refresh categories when sessions change
         }
         if (namespace === 'local' && changes.dailyTasks) {

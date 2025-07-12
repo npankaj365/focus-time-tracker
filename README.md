@@ -7,12 +7,15 @@ A Chrome extension that helps you track focused work time using the Pomodoro tec
 ### ⏱️ **Timer & Tracking**
 - Customizable focus timers with category tracking
 - Background timer persistence across browser sessions
-- Visual progress indicators and completion notifications
+- Visual progress indicators with audio completion notifications
+- Editable timer display (click to change duration)
+- Last category preselection for quick session starts
 
 ### 🎯 **New Tab Integration**
 - Override default new tab with Focus Time Tracker
 - Integrated timer with glass morphism design
-- Live statistics dashboard
+- Live statistics dashboard with smart comparisons
+- "This Week" vs last week and "This Month" vs last month indicators
 
 ### 🏷️ **Smart Categories**
 - Pre-loaded categories: Research, Learning, Work, Volunteering
@@ -20,16 +23,18 @@ A Chrome extension that helps you track focused work time using the Pomodoro tec
 - Dropdown selection (popup) and autocomplete (new tab)
 
 ### 📊 **GitHub-Style Streak Heatmap**
-- 365-day activity visualization
+- Complete history visualization with year navigation
 - 5 intensity levels based on focus duration
 - Interactive tooltips with date and time details
-- Streak statistics (current, longest, total days)
+- Context-aware streak statistics (current only shown for current year)
+- Available on both New Tab and Statistics pages
 
 ### 📈 **Advanced Analytics**
 - Interactive pie charts with category breakdown
 - Time period navigation (Day/Week/Month/Year)
 - 8 summary cards for different time periods
 - Dynamic titles showing total focus hours
+- Smart time formatting (hours/minutes) for all comparisons
 
 ### 💾 **Data Management**
 - CSV export/import functionality
@@ -62,11 +67,31 @@ A Chrome extension that helps you track focused work time using the Pomodoro tec
 - Open a new tab to see the focus dashboard
 - Use the integrated timer with visual progress
 - View your streak heatmap and daily stats
+- Navigate through historical data with year controls
+- Click timer display to edit duration inline
 
 ### Statistics Page
 - Click "📊 Full Statistics" or right-click extension → Options
-- Explore detailed charts and analytics
+- Explore detailed charts and analytics with year navigation
 - Export/import your focus data
+- Browse complete focus history across all years
+
+## ✨ Recent Improvements
+
+### v2.1 (Latest)
+- **Enhanced Timer UX**: Removed pause button, added editable timer display
+- **Smart Category Memory**: Automatically preselects your last used category
+- **Historical Navigation**: Complete year-by-year heatmap navigation on both pages
+- **Better Time Formatting**: All comparisons now show hours/minutes (e.g., "2h 30m" not "150m")
+- **Context-Aware Streaks**: Current streak only displays when viewing current year
+- **Audio Notifications**: MP3 chime plays when focus sessions complete
+- **Improved Comparisons**: "This Week" vs last week, "This Month" vs last month indicators
+
+### UI/UX Polish
+- More legible red color for negative comparisons
+- Cleaner comparison text (removed redundant "vs last week/month")
+- Hidden comparisons when no previous period data exists
+- Streamlined timer controls with better visual feedback
 
 ## 🏗️ Architecture
 
